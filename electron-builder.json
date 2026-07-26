@@ -1,0 +1,21 @@
+{
+  "appId": "com.gem5.garnet.editor",
+  "productName": "gem5 Garnet NoC Editor",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*"
+  ],
+  "linux": {
+    "target": ["AppImage", "deb"],
+    "category": "Development"
+  },
+  "win": {
+    "target": ["nsis"]
+  },
+  "mac": {
+    "target": ["dmg"]
+  }
+}

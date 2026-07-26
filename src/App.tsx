@@ -1,0 +1,225 @@
+import { useState, useCallback } from 'react';
+import { Header } from './components/Header';
+import { Canvas } from './components/Canvas';
+import { SettingsPanel } from './components/SettingsPanel';
+import { GeneratorModal } from './components/GeneratorModal';
+import { CodePreviewModal } from './components/CodePreviewModal';
+import { NoCProject, NodeType, Gem5ComponentType } from './types/noc';
+import { generateMeshTopology, generateTorusTopology, generateRingTopology } from './utils/topologyGenerators';
+import { computeForceLayout } from './utils/forceLayout';
+
+// Default initial 4x4 Mesh Project
+const createInitialProject = (): NoCProject => {
+  const mesh = generateMeshTopology({
+    cols: 4,
+    rows: 4,
+    attachEndpoints: true,
+    endpointType: 'CPU_Timing',
+  });
+
+  return {
+    id: `project_${Date.now()}`,
+    name: 'Garnet_4x4_Mesh_System',
+    description: '4x4 Mesh NoC topology generated for gem5 Garnet simulation',
+    created: new Date().toISOString(),
+    modified: new Date().toISOString(),
+    nodes: mesh.nodes,
+    links: mesh.links,
+    settings: {
+      vnets: 3,
+      buffersPerVC: 4,
+      niSingleVnetBuffer: false,
+      routingAlgorithm: 'table',
+      clockDomain: '2GHz',
+    },
+    globalTemplates: [],
+  };
+};
+
+export function App() {
+  const [project, setProject] = useState<NoCProject>(createInitialProject);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  // Modals
+  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const [isCodePreviewOpen, setIsCodePreviewOpen] = useState(false);
+
+  // Trigger D3 Force Auto-Layout physics simulation
+  const handleRunForceLayout = useCallback(() => {
+    const updatedPositions = computeForceLayout(project.nodes, project.links, 1000, 700);
+
+    const updatedNodes = project.nodes.map((node) => {
+      const pos = updatedPositions.get(node.id);
+      return pos ? { ...node, position: pos } : node;
+    });
+
+    setProject((prev) => ({ ...prev, nodes: updatedNodes }));
+  }, [project]);
+
+  // Handle Quick Add Node
+  const handleAddNode = (type: NodeType) => {
+    const nextIndex = project.nodes.length + 1;
+    const nodeId = `node_${Date.now()}`;
+    const posX = 200 + Math.random() * 300;
+    const posY = 150 + Math.random() * 250;
+
+    const nodeData: any = {
+      label: type === 'router' ? `Router ${nextIndex}` : type === 'template' ? `Custom Template ${nextIndex}` : `Endpoint ${nextIndex}`,
+      type,
+    };
+
+    if (type === 'router') {
+      const highestRouterId = Math.max(
+        -1,
+        ...project.nodes.filter((n) => n.data.type === 'router').map((n) => n.data.routerId ?? -1)
+      );
+      nodeData.routerId = highestRouterId + 1;
+      nodeData.latency = 1;
+    } else if (type === 'endpoint') {
+      nodeData.gem5Component = 'CPU_Timing';
+    } else if (type === 'template') {
+      nodeData.templateClassCode = `class CustomNode_${nextIndex}(ClockedObject):\n    type = 'CustomNode_${nextIndex}'\n    processing_latency = Param.Cycles(2, "Latency")`;
+      nodeData.templateInstantiationCode = `custom_inst_${nextIndex} = CustomNode_${nextIndex}()`;
+    }
+
+    const newNode = {
+      id: nodeId,
+      position: { x: posX, y: posY },
+      data: nodeData,
+    };
+
+    setProject((prev) => ({
+      ...prev,
+      nodes: [...prev.nodes, newNode],
+    }));
+
+    setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
+  };
+
+  // Generate Topology Preset
+  const handleGenerateTopology = (
+    type: 'mesh' | 'torus' | 'ring',
+    options: { cols: number; rows: number; count: number; endpointType: Gem5ComponentType; attachEndpoints: boolean }
+  ) => {
+    let result;
+    if (type === 'mesh') {
+      result = generateMeshTopology({
+        cols: options.cols,
+        rows: options.rows,
+        attachEndpoints: options.attachEndpoints,
+        endpointType: options.endpointType,
+      });
+    } else if (type === 'torus') {
+      result = generateTorusTopology({
+        cols: options.cols,
+        rows: options.rows,
+        attachEndpoints: options.attachEndpoints,
+        endpointType: options.endpointType,
+      });
+    } else {
+      result = generateRingTopology({
+        nodeCount: options.count,
+        attachEndpoints: options.attachEndpoints,
+        endpointType: options.endpointType,
+      });
+    }
+
+    setProject((prev) => ({
+      ...prev,
+      name: `Garnet_${type.toUpperCase()}_System`,
+      nodes: result.nodes,
+      links: result.links,
+    }));
+
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+  };
+
+  // Reset to empty canvas
+  const handleNewProject = () => {
+    if (window.confirm('Create a new blank canvas? Unsaved changes will be lost.')) {
+      setProject({
+        id: `project_${Date.now()}`,
+        name: 'New_Garnet_NoC',
+        description: 'Custom gem5 Garnet Network-on-Chip topology',
+        created: new Date().toISOString(),
+        modified: new Date().toISOString(),
+        nodes: [],
+        links: [],
+        settings: {
+          vnets: 3,
+          buffersPerVC: 4,
+          niSingleVnetBuffer: false,
+          routingAlgorithm: 'table',
+          clockDomain: '2GHz',
+        },
+        globalTemplates: [],
+      });
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-dark-950">
+      {/* Top Header Toolbar */}
+      <Header
+        project={project}
+        onProjectChange={setProject}
+        onOpenGenerator={() => setIsGeneratorOpen(true)}
+        onOpenCodePreview={() => setIsCodePreviewOpen(true)}
+        onNewProject={handleNewProject}
+      />
+
+      {/* Main Workspace Layout */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left Interactive Canvas */}
+        <div className="flex-1 h-full">
+          <Canvas
+            project={project}
+            onProjectChange={setProject}
+            selectedNodeId={selectedNodeId}
+            selectedEdgeId={selectedEdgeId}
+            onSelectNode={(id) => {
+              setSelectedNodeId(id);
+              setSelectedEdgeId(null);
+            }}
+            onSelectEdge={(id) => {
+              setSelectedEdgeId(id);
+              setSelectedNodeId(null);
+            }}
+            onRunForceLayout={handleRunForceLayout}
+          />
+        </div>
+
+        {/* Right Settings Inspector Panel */}
+        <SettingsPanel
+          project={project}
+          onProjectChange={setProject}
+          selectedNodeId={selectedNodeId}
+          selectedEdgeId={selectedEdgeId}
+          onSelectNode={setSelectedNodeId}
+          onSelectEdge={setSelectedEdgeId}
+          onAddNode={handleAddNode}
+        />
+      </div>
+
+      {/* Modals */}
+      <GeneratorModal
+        isOpen={isGeneratorOpen}
+        onClose={() => setIsGeneratorOpen(false)}
+        onGenerate={handleGenerateTopology}
+      />
+
+      <CodePreviewModal
+        isOpen={isCodePreviewOpen}
+        onClose={() => setIsCodePreviewOpen(false)}
+        project={project}
+      />
+    </div>
+  );
+}
+
+export default App;
