@@ -1,11 +1,14 @@
-import { NoCProject } from '../types/noc';
+import { NoCProject, Gem5ComponentType } from '../types/noc';
 
 /**
  * Generates an executable gem5 Python configuration script for Garnet NoC.
- * Includes custom template blocks at the top as requested.
+ * Includes factory helper methods for repeated component types (>1 instances),
+ * direct inline instantiation for single instances (==1 instance),
+ * global workload binary path execution, and gem5 port setup.
  */
 export function generateGem5PythonScript(project: NoCProject): string {
   const lines: string[] = [];
+  const binaryPath = project.settings.binaryPath?.trim();
 
   // 1. Header Information
   lines.push(`# ==============================================================================`);
@@ -22,7 +25,7 @@ export function generateGem5PythonScript(project: NoCProject): string {
   lines.push(`from m5.objects.Topology import BaseTopology`);
   lines.push(``);
 
-  // 2. Custom Template Definitions Section (At the top of the file as requested)
+  // 2. Custom Template Definitions Section
   lines.push(`# ==============================================================================`);
   lines.push(`# SECTION 1: CUSTOM TEMPLATE DEFINITIONS & COMPLEX COMPONENT TYPES`);
   lines.push(`# Modify the classes below to integrate user-defined C++/Python gem5 objects`);
@@ -63,15 +66,232 @@ export function generateGem5PythonScript(project: NoCProject): string {
     lines.push(``);
   }
 
-  // 3. Garnet Topology Definition Class
+  // 3. Count frequency of each component type across all endpoint nodes
+  const routerNodes = project.nodes.filter((n) => n.data.type === 'router');
+  const endpointNodes = project.nodes.filter((n) => n.data.type !== 'router');
+
+  const typeCounts = new Map<string, number>();
+  endpointNodes.forEach((node) => {
+    const key = node.data.type === 'template'
+      ? (node.data.label ? sanitizeVarName(node.data.label) : 'custom_template')
+      : (node.data.gem5Component || 'CPU_Timing');
+    typeCounts.set(key, (typeCounts.get(key) || 0) + 1);
+  });
+
+  // 4. Section 2: Factory Helper Functions (Only for component types used MORE THAN ONCE (>1))
   lines.push(`# ==============================================================================`);
-  lines.push(`# SECTION 2: GARNET NOC TOPOLOGY DEFINITION`);
+  lines.push(`# SECTION 2: FACTORY HELPER METHODS & COMPONENT BUILDERS`);
+  lines.push(`# Factory functions are generated ONLY for component types used > 1 time.`);
+  lines.push(`# ==============================================================================`);
+  lines.push(``);
+
+  const generatedHelpers = new Set<string>();
+
+  typeCounts.forEach((count, typeKey) => {
+    if (count > 1) {
+      generatedHelpers.add(typeKey);
+      lines.push(`# --- Factory Helper Method for repeated type: ${typeKey} (Used ${count}x) ---`);
+
+      if (typeKey === 'CPU_Timing') {
+        lines.push(`def create_cpu_timing_helper(system, cpu_id, binary_path=None):`);
+        lines.push(`    """Factory method to instantiate and configure TimingSimpleCPU"""`);
+        lines.push(`    cpu = TimingSimpleCPU(cpu_id=cpu_id)`);
+        lines.push(`    cpu.createInterruptController()`);
+        lines.push(`    if binary_path:`);
+        lines.push(`        process = Process(cmd=[binary_path])`);
+        lines.push(`        cpu.workload = process`);
+        lines.push(`        cpu.createThreads()`);
+        lines.push(`    return cpu`);
+        lines.push(``);
+      } else if (typeKey === 'CPU_O3') {
+        lines.push(`def create_cpu_o3_helper(system, cpu_id, binary_path=None):`);
+        lines.push(`    """Factory method to instantiate and configure DerivO3CPU"""`);
+        lines.push(`    cpu = DerivO3CPU(cpu_id=cpu_id)`);
+        lines.push(`    cpu.createInterruptController()`);
+        lines.push(`    if binary_path:`);
+        lines.push(`        process = Process(cmd=[binary_path])`);
+        lines.push(`        cpu.workload = process`);
+        lines.push(`        cpu.createThreads()`);
+        lines.push(`    return cpu`);
+        lines.push(``);
+      } else if (typeKey === 'Cache_L1I') {
+        lines.push(`def create_cache_l1i_helper(system):`);
+        lines.push(`    return Cache(size='32kB', assoc=2, is_read_only=True)`);
+        lines.push(``);
+      } else if (typeKey === 'Cache_L1D') {
+        lines.push(`def create_cache_l1d_helper(system):`);
+        lines.push(`    return Cache(size='64kB', assoc=4)`);
+        lines.push(``);
+      } else if (typeKey === 'Cache_L2') {
+        lines.push(`def create_cache_l2_helper(system):`);
+        lines.push(`    return Cache(size='256kB', assoc=8)`);
+        lines.push(``);
+      } else if (typeKey === 'Directory') {
+        lines.push(`def create_directory_helper(system):`);
+        lines.push(`    return Directory_Controller()`);
+        lines.push(``);
+      } else if (typeKey === 'DRAM_DDR3') {
+        lines.push(`def create_dram_ddr3_helper(system):`);
+        lines.push(`    return MemCtrl(dram=DDR3_1600_8x8())`);
+        lines.push(``);
+      } else if (typeKey === 'DRAM_DDR4') {
+        lines.push(`def create_dram_ddr4_helper(system):`);
+        lines.push(`    return MemCtrl(dram=SingleChannelDDR4_2400())`);
+        lines.push(``);
+      } else if (typeKey === 'DRAM_HBM2') {
+        lines.push(`def create_dram_hbm2_helper(system):`);
+        lines.push(`    return MemCtrl(dram=HBM2_2000_4H_1x64())`);
+        lines.push(``);
+      } else if (typeKey === 'DMA') {
+        lines.push(`def create_dma_helper(system):`);
+        lines.push(`    return DMASequencer()`);
+        lines.push(``);
+      } else {
+        // Repeated Custom Template
+        lines.push(`def create_${typeKey}_helper(system):`);
+        lines.push(`    return CustomGarnetAccelerator()`);
+        lines.push(``);
+      }
+    }
+  });
+
+  // Build System Controllers Function
+  lines.push(`def build_system_controllers(system, binary_path=${binaryPath ? `'${binaryPath}'` : 'None'}):`);
+  lines.push(`    """`);
+  lines.push(`    Instantiates configured gem5 endpoints and attaches them to the system.`);
+  lines.push(`    Repeated types (>1x) use helper methods; single types (1x) are built inline.`);
+  lines.push(`    Returns the ordered list of controllers for Garnet NoC ExtLink mapping.`);
+  lines.push(`    """`);
+  lines.push(`    controllers = []`);
+  lines.push(``);
+
+  const routerIdMap = new Map<string, number>();
+  routerNodes.forEach((node, index) => {
+    const rId = node.data.routerId !== undefined ? node.data.routerId : index;
+    routerIdMap.set(node.id, rId);
+  });
+
+  let cpuCounter = 0;
+  endpointNodes.forEach((epNode, idx) => {
+    const varName = sanitizeVarName(epNode.data.label || `ep_${idx}`);
+    const compType: Gem5ComponentType = epNode.data.gem5Component || 'CPU_Timing';
+    const typeKey = epNode.data.type === 'template'
+      ? (epNode.data.label ? sanitizeVarName(epNode.data.label) : 'custom_template')
+      : compType;
+
+    const isRepeated = generatedHelpers.has(typeKey);
+
+    lines.push(`    # Endpoint ${idx}: ${epNode.data.label} (${isRepeated ? 'Repeated >1x -> Uses Helper' : 'Single 1x -> Inline'})`);
+
+    if (epNode.data.type === 'template') {
+      if (epNode.data.templateInstantiationCode?.trim()) {
+        const instCode = epNode.data.templateInstantiationCode.trim();
+        lines.push(`    ${instCode.replace(/\n/g, '\n    ')}`);
+        const match = instCode.match(/^([a-zA-Z0-9_]+)\s*=/);
+        const instantiatedVar = match ? match[1] : varName;
+        lines.push(`    system.${instantiatedVar} = ${instantiatedVar}`);
+        lines.push(`    controllers.append(${instantiatedVar})`);
+      } else if (isRepeated) {
+        lines.push(`    ${varName} = create_${typeKey}_helper(system)`);
+        lines.push(`    system.${varName} = ${varName}`);
+        lines.push(`    controllers.append(${varName})`);
+      } else {
+        lines.push(`    ${varName} = CustomGarnetAccelerator()`);
+        lines.push(`    system.${varName} = ${varName}`);
+        lines.push(`    controllers.append(${varName})`);
+      }
+    } else {
+      // Standard gem5 Component
+      if (isRepeated) {
+        // Use factory helper method
+        if (compType === 'CPU_Timing') {
+          lines.push(`    ${varName} = create_cpu_timing_helper(system, cpu_id=${cpuCounter++}, binary_path=binary_path)`);
+        } else if (compType === 'CPU_O3') {
+          lines.push(`    ${varName} = create_cpu_o3_helper(system, cpu_id=${cpuCounter++}, binary_path=binary_path)`);
+        } else if (compType === 'Cache_L1I') {
+          lines.push(`    ${varName} = create_cache_l1i_helper(system)`);
+        } else if (compType === 'Cache_L1D') {
+          lines.push(`    ${varName} = create_cache_l1d_helper(system)`);
+        } else if (compType === 'Cache_L2') {
+          lines.push(`    ${varName} = create_cache_l2_helper(system)`);
+        } else if (compType === 'Directory') {
+          lines.push(`    ${varName} = create_directory_helper(system)`);
+        } else if (compType === 'DRAM_DDR3') {
+          lines.push(`    ${varName} = create_dram_ddr3_helper(system)`);
+        } else if (compType === 'DRAM_DDR4') {
+          lines.push(`    ${varName} = create_dram_ddr4_helper(system)`);
+        } else if (compType === 'DRAM_HBM2') {
+          lines.push(`    ${varName} = create_dram_hbm2_helper(system)`);
+        } else if (compType === 'DMA') {
+          lines.push(`    ${varName} = create_dma_helper(system)`);
+        } else {
+          lines.push(`    ${varName} = create_${typeKey}_helper(system)`);
+        }
+      } else {
+        // Used ONLY 1x -> Inline instantiation
+        switch (compType) {
+          case 'CPU_Timing':
+            lines.push(`    ${varName} = TimingSimpleCPU(cpu_id=${cpuCounter++})`);
+            lines.push(`    ${varName}.createInterruptController()`);
+            lines.push(`    if binary_path:`);
+            lines.push(`        ${varName}.workload = Process(cmd=[binary_path])`);
+            lines.push(`        ${varName}.createThreads()`);
+            break;
+          case 'CPU_O3':
+            lines.push(`    ${varName} = DerivO3CPU(cpu_id=${cpuCounter++})`);
+            lines.push(`    ${varName}.createInterruptController()`);
+            lines.push(`    if binary_path:`);
+            lines.push(`        ${varName}.workload = Process(cmd=[binary_path])`);
+            lines.push(`        ${varName}.createThreads()`);
+            break;
+          case 'Cache_L1I':
+            lines.push(`    ${varName} = Cache(size='32kB', assoc=2, is_read_only=True)`);
+            break;
+          case 'Cache_L1D':
+            lines.push(`    ${varName} = Cache(size='64kB', assoc=4)`);
+            break;
+          case 'Cache_L2':
+            lines.push(`    ${varName} = Cache(size='256kB', assoc=8)`);
+            break;
+          case 'Directory':
+            lines.push(`    ${varName} = Directory_Controller()`);
+            break;
+          case 'DRAM_DDR3':
+            lines.push(`    ${varName} = MemCtrl(dram=DDR3_1600_8x8())`);
+            break;
+          case 'DRAM_DDR4':
+            lines.push(`    ${varName} = MemCtrl(dram=SingleChannelDDR4_2400())`);
+            break;
+          case 'DRAM_HBM2':
+            lines.push(`    ${varName} = MemCtrl(dram=HBM2_2000_4H_1x64())`);
+            break;
+          case 'DMA':
+            lines.push(`    ${varName} = DMASequencer()`);
+            break;
+          case 'Custom_Accelerator':
+          default:
+            lines.push(`    ${varName} = CustomGarnetAccelerator()`);
+            break;
+        }
+      }
+      lines.push(`    system.${varName} = ${varName}`);
+      lines.push(`    controllers.append(${varName})`);
+    }
+    lines.push(``);
+  });
+
+  lines.push(`    return controllers`);
+  lines.push(``);
+
+  // 5. Garnet Topology Definition Class
+  lines.push(`# ==============================================================================`);
+  lines.push(`# SECTION 3: GARNET NOC TOPOLOGY DEFINITION`);
   lines.push(`# ==============================================================================`);
   lines.push(``);
   lines.push(`class Garnet${sanitizeClassName(project.name)}Topology(BaseTopology):`);
   lines.push(`    """`);
   lines.push(`    Autogenerated Garnet NoC Topology Class.`);
-  lines.push(`    Contains ${project.nodes.filter(n => n.data.type === 'router').length} Routers and ${project.nodes.filter(n => n.data.type !== 'router').length} Endpoints.`);
+  lines.push(`    Contains ${routerNodes.length} Routers and ${endpointNodes.length} Endpoints.`);
   lines.push(`    """`);
   lines.push(`    def __init__(self, controllers):`);
   lines.push(`        super().__init__(controllers)`);
@@ -79,17 +299,6 @@ export function generateGem5PythonScript(project: NoCProject): string {
   lines.push(`    def makeTopology(self, options, network, IntLink, ExtLink, Router):`);
   lines.push(`        nodes = self.nodes`);
   lines.push(``);
-
-  // Map nodes
-  const routerNodes = project.nodes.filter((n) => n.data.type === 'router');
-  const endpointNodes = project.nodes.filter((n) => n.data.type !== 'router');
-
-  // Assign router IDs sequentially if not set
-  const routerIdMap = new Map<string, number>();
-  routerNodes.forEach((node, index) => {
-    const rId = node.data.routerId !== undefined ? node.data.routerId : index;
-    routerIdMap.set(node.id, rId);
-  });
 
   // Instantiate Routers
   lines.push(`        # ----------------------------------------------------------------------`);
@@ -147,7 +356,6 @@ export function generateGem5PythonScript(project: NoCProject): string {
   let extLinkCounter = 0;
 
   endpointNodes.forEach((epNode, idx) => {
-    // Find router connected to this endpoint
     const connectedLink = project.links.find(
       (l) => (l.source === epNode.id && routerIdMap.has(l.target)) || (l.target === epNode.id && routerIdMap.has(l.source))
     );
@@ -156,50 +364,41 @@ export function generateGem5PythonScript(project: NoCProject): string {
       ? routerIdMap.get(connectedLink.source === epNode.id ? connectedLink.target : connectedLink.source)
       : 0;
 
-    const compType = epNode.data.gem5Component || 'CPU_Timing';
     const label = epNode.data.label || `Endpoint_${idx}`;
     const latency = connectedLink ? connectedLink.latency : 1;
     const bwBytes = connectedLink ? Math.max(1, Math.floor((connectedLink.bandwidth || 128) / 8)) : 16;
 
-    if (epNode.data.type === 'template') {
-      // Template custom endpoint
-      lines.push(`        # Custom Template Endpoint: ${label}`);
-      if (epNode.data.templateInstantiationCode?.trim()) {
-        lines.push(`        # User Instantiation:`);
-        lines.push(`        # ${epNode.data.templateInstantiationCode.trim().replace(/\n/g, '\n        # ')}`);
-      }
-      lines.push(
-        `        if len(nodes) > ${idx}:`
-      );
-      lines.push(
-        `            ext_links.append(ExtLink(link_id=${extLinkCounter++}, extnode=nodes[${idx}], intnode=routers[${routerId}], latency=${latency}, width=${bwBytes}))`
-      );
-    } else {
-      // Standard gem5 component type
-      lines.push(`        # ${compType} Component (${label}) connected to Router ${routerId}`);
-      lines.push(
-        `        if len(nodes) > ${idx}:`
-      );
-      lines.push(
-        `            ext_links.append(ExtLink(link_id=${extLinkCounter++}, extnode=nodes[${idx}], intnode=routers[${routerId}], latency=${latency}, width=${bwBytes}))`
-      );
-    }
+    lines.push(`        # ExtLink ${extLinkCounter}: ${label} -> Router ${routerId}`);
+    lines.push(
+      `        ext_links.append(ExtLink(link_id=${extLinkCounter++}, extnode=nodes[${idx}], intnode=routers[${routerId}], latency=${latency}, width=${bwBytes}))`
+    );
   });
 
   lines.push(`        network.ext_links = ext_links`);
   lines.push(``);
 
-  // 4. Standalone Runner & Network Configuration Helper
+  // 6. Full Standalone System Runner Block
   lines.push(`# ==============================================================================`);
-  lines.push(`# SECTION 3: SYSTEM INTEGRATION & RUNNER UTILITY`);
+  lines.push(`# SECTION 4: FULL SYSTEM SIMULATION BENCHMARK RUNNER`);
+  lines.push(`# Direct execution script for gem5 simulation environment`);
   lines.push(`# ==============================================================================`);
   lines.push(``);
-  lines.push(`def create_garnet_network(ruby_system, controllers):`);
+  lines.push(`def build_and_run_system():`);
   lines.push(`    """`);
-  lines.push(`    Helper function to instantiate and register GarnetNetwork into a Ruby System`);
+  lines.push(`    Builds the top-level gem5 System, instantiates controllers, Garnet NoC,`);
+  lines.push(`    and executes the simulation.`);
   lines.push(`    """`);
+  lines.push(`    system = System()`);
+  lines.push(`    system.clk_domain = SrcClockDomain(clock='${project.settings.clockDomain || '2GHz'}', voltage_domain=VoltageDomain())`);
+  lines.push(`    system.mem_mode = 'timing'`);
+  lines.push(`    system.mem_ranges = [AddrRange('512MB')]`);
+  lines.push(``);
+  lines.push(`    # 1. Build and attach all configured CPUs, Caches, DRAM, and Custom Endpoints`);
+  lines.push(`    controllers = build_system_controllers(system, binary_path=${binaryPath ? `'${binaryPath}'` : 'None'})`);
+  lines.push(``);
+  lines.push(`    # 2. Build Garnet NoC Network`);
   lines.push(`    network = GarnetNetwork(`);
-  lines.push(`        ruby_system=ruby_system,`);
+  lines.push(`        ruby_system=system,`);
   lines.push(`        vcs_per_vnet=${project.settings.buffersPerVC || 4},`);
   lines.push(`        buffers_per_data_vc=${project.settings.buffersPerVC || 4},`);
   lines.push(`        buffers_per_ctrl_vc=${project.settings.buffersPerVC || 4},`);
@@ -208,17 +407,35 @@ export function generateGem5PythonScript(project: NoCProject): string {
   lines.push(`    )`);
   lines.push(`    topology = Garnet${sanitizeClassName(project.name)}Topology(controllers)`);
   lines.push(`    topology.makeTopology(None, network, IntLink, ExtLink, Router)`);
-  lines.push(`    return network`);
+  lines.push(`    network.init_net()`);
+  lines.push(``);
+  lines.push(`    # 3. Connect Memory & CPU Ports`);
+  lines.push(`    system.system_port = system.membus.cpu_side_ports if hasattr(system, 'membus') else None`);
+  lines.push(``);
+  lines.push(`    # 4. Instantiate Root & Run gem5 Simulation`);
+  lines.push(`    root = Root(full_system=False, system=system)`);
+  lines.push(`    m5.instantiate()`);
+  lines.push(`    print("==================================================================")`);
+  lines.push(`    print("Beginning gem5 Garnet NoC simulation: ${project.name}")`);
+  lines.push(`    print("Routers: ${routerNodes.length} | Endpoints: ${endpointNodes.length} | Links: ${project.links.length}")`);
+  lines.push(`    if ${binaryPath ? `'${binaryPath}'` : 'None'}:`);
+  lines.push(`        print(f"Workload Binary: {${binaryPath ? `'${binaryPath}'` : 'None'}}")`);
+  lines.push(`    print("==================================================================")`);
+  lines.push(`    exit_event = m5.simulate()`);
+  lines.push(`    print(f"Simulation finished @ tick {m5.curTick()} because: {exit_event.getCause()}")`);
   lines.push(``);
 
-  lines.push(`# Standard execution entry point`);
   lines.push(`if __name__ == '__main__':`);
-  lines.push(`    print("Garnet NoC Topology: ${project.name}")`);
-  lines.push(`    print("Routers: ${routerNodes.length}, Endpoints: ${endpointNodes.length}, Links: ${project.links.length}")`);
+  lines.push(`    build_and_run_system()`);
 
   return lines.join('\n');
 }
 
 function sanitizeClassName(str: string): string {
   return str.replace(/[^a-zA-Z0-9]/g, '');
+}
+
+function sanitizeVarName(str: string): string {
+  const sanitized = str.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  return /^[a-z_]/.test(sanitized) ? sanitized : `var_${sanitized}`;
 }

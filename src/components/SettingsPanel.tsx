@@ -331,6 +331,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">NoC Global Settings</div>
               <div className="space-y-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
                 <div>
+                  <label className="text-xs text-slate-400 mb-1 block font-medium">Workload Binary Path</label>
+                  <input
+                    type="text"
+                    placeholder="/path/to/executable_binary"
+                    value={project.settings.binaryPath || ''}
+                    onChange={(e) =>
+                      onProjectChange({
+                        ...project,
+                        settings: { ...project.settings, binaryPath: e.target.value },
+                      })
+                    }
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
                   <label className="text-xs text-slate-400 mb-1 block font-medium">Virtual Channels / VNet</label>
                   <input
                     type="number"

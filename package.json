@@ -11,7 +11,8 @@
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && tsc -p tsconfig.electron.json && electron .\"",
     "electron:build": "npm run build && tsc -p tsconfig.electron.json && electron-builder",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview --host --port 4173",
+    "serve": "vite preview --host --port 4173"
   },
   "dependencies": {
     "@xyflow/react": "^12.11.2",

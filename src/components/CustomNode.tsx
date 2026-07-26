@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { Network, Cpu, Layers, Zap, Code, Database, Radio } from 'lucide-react';
 import { NoCNodeData, Gem5ComponentType } from '../types/noc';
@@ -25,14 +25,22 @@ const getComponentIcon = (type?: Gem5ComponentType) => {
   }
 };
 
-export const CustomNode = memo(({ data, selected }: NodeProps) => {
-  const nodeData = data as unknown as NoCNodeData;
+export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
+  const nodeData = data as unknown as NoCNodeData & { nodeId?: string; onSelectNode?: (id: string) => void };
   const isRouter = nodeData.type === 'router';
   const isTemplate = nodeData.type === 'template';
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (nodeData.onSelectNode) {
+      nodeData.onSelectNode(id || nodeData.nodeId || '');
+    }
+  };
+
   return (
     <div
-      className={`px-4 py-3 rounded-xl border transition-all duration-200 min-w-[160px] shadow-lg relative ${
+      onClick={handleClick}
+      className={`px-4 py-3 rounded-xl border transition-all duration-200 min-w-[160px] shadow-lg relative cursor-pointer select-none ${
         selected
           ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-900 border-blue-400 shadow-blue-500/20'
           : 'border-slate-700/60 hover:border-slate-500'
@@ -44,62 +52,68 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
           : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-100'
       }`}
     >
-      {/* 4 Cardinal Handle Groups (Top, Bottom, Left, Right) */}
-      
-      {/* TOP HANDLES */}
+      {/* TOP HANDLES (Target left 35%, Source left 65%) */}
       <Handle
         type="target"
         position={Position.Top}
         id="target-top"
-        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        style={{ left: '35%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
       />
       <Handle
         type="source"
         position={Position.Top}
         id="source-top"
-        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        style={{ left: '65%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
       />
 
-      {/* BOTTOM HANDLES */}
+      {/* BOTTOM HANDLES (Target left 35%, Source left 65%) */}
       <Handle
         type="target"
         position={Position.Bottom}
         id="target-bottom"
-        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        style={{ left: '35%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
       />
       <Handle
         type="source"
         position={Position.Bottom}
         id="source-bottom"
-        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        style={{ left: '65%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
       />
 
-      {/* LEFT HANDLES */}
+      {/* LEFT HANDLES (Target top 35%, Source top 65%) */}
       <Handle
         type="target"
         position={Position.Left}
         id="target-left"
-        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        style={{ top: '35%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
       />
       <Handle
         type="source"
         position={Position.Left}
         id="source-left"
-        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        style={{ top: '65%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
       />
 
-      {/* RIGHT HANDLES */}
+      {/* RIGHT HANDLES (Target top 35%, Source top 65%) */}
       <Handle
         type="target"
         position={Position.Right}
         id="target-right"
-        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        style={{ top: '35%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
       />
       <Handle
         type="source"
         position={Position.Right}
         id="source-right"
-        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        style={{ top: '65%' }}
+        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
       />
 
       {/* Header Badge & Title */}

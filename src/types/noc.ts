@@ -52,6 +52,7 @@ export interface NoCProjectSettings {
   niSingleVnetBuffer: boolean;
   routingAlgorithm: 'table' | 'xy' | 'custom';
   clockDomain: string;        // e.g., "2GHz"
+  binaryPath?: string;        // Global workload executable binary path
 }
 
 export interface GlobalTemplateDef {

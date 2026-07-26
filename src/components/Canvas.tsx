@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -9,6 +9,10 @@ import {
   Connection,
   BackgroundVariant,
   Panel,
+  NodeChange,
+  EdgeChange,
+  applyNodeChanges,
+  applyEdgeChanges,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { CustomNode } from './CustomNode';
@@ -36,18 +40,22 @@ export const Canvas: React.FC<CanvasProps> = ({
 }) => {
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
 
-  // Convert project.nodes to ReactFlow Node array
+  // Construct initial nodes array from project props
   const initialNodes: Node[] = useMemo(() => {
     return project.nodes.map((n) => ({
       id: n.id,
       type: 'custom',
       position: n.position,
-      data: n.data as unknown as Record<string, unknown>,
+      data: {
+        ...n.data,
+        nodeId: n.id,
+        onSelectNode,
+      } as unknown as Record<string, unknown>,
       selected: n.id === selectedNodeId,
     }));
-  }, [project.nodes, selectedNodeId]);
+  }, [project.nodes, selectedNodeId, onSelectNode]);
 
-  // Convert project.links to ReactFlow Edge array mapping explicit cardinal handle IDs
+  // Construct initial edges array from project props
   const initialEdges: Edge[] = useMemo(() => {
     return project.links.map((l) => ({
       id: l.id,
@@ -64,18 +72,45 @@ export const Canvas: React.FC<CanvasProps> = ({
     }));
   }, [project.links, selectedEdgeId]);
 
-  // Sync back node position updates to project state
-  const handleNodeDragStop = useCallback(
-    (_: any, node: Node) => {
-      const updatedNodes = project.nodes.map((n) =>
-        n.id === node.id ? { ...n, position: node.position } : n
+  const [nodes, setNodes] = useState<Node[]>(initialNodes);
+  const [edges, setEdges] = useState<Edge[]>(initialEdges);
+
+  // Sync state when project or selection changes externally
+  useEffect(() => {
+    setNodes(initialNodes);
+  }, [initialNodes]);
+
+  useEffect(() => {
+    setEdges(initialEdges);
+  }, [initialEdges]);
+
+  // Handle all ReactFlow node changes (position, dimensions, selection)
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setNodes((nds) => applyNodeChanges(changes, nds));
+
+      // Sync position updates back to project state on drag end
+      const posChanges = changes.filter(
+        (c): c is Extract<NodeChange, { type: 'position' }> => c.type === 'position' && !!c.position && !c.dragging
       );
-      onProjectChange({
-        ...project,
-        nodes: updatedNodes,
-      });
+
+      if (posChanges.length > 0) {
+        const updatedProjectNodes = project.nodes.map((pn) => {
+          const posChange = posChanges.find((pc) => pc.id === pn.id);
+          return posChange && posChange.position ? { ...pn, position: posChange.position } : pn;
+        });
+        onProjectChange({ ...project, nodes: updatedProjectNodes });
+      }
     },
     [project, onProjectChange]
+  );
+
+  // Handle all ReactFlow edge changes
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => {
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+    },
+    []
   );
 
   // Handle new connection creation preserving selected port handle IDs
@@ -107,16 +142,19 @@ export const Canvas: React.FC<CanvasProps> = ({
   return (
     <div className="w-full h-full relative bg-dark-950">
       <ReactFlow
-        nodes={initialNodes}
-        edges={initialEdges}
+        nodes={nodes}
+        edges={edges}
         nodeTypes={nodeTypes}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
-        onNodeDragStop={handleNodeDragStop}
-        onNodeClick={(_, node) => {
+        onNodeClick={(event, node) => {
+          event.stopPropagation();
           onSelectNode(node.id);
           onSelectEdge(null);
         }}
-        onEdgeClick={(_, edge) => {
+        onEdgeClick={(event, edge) => {
+          event.stopPropagation();
           onSelectEdge(edge.id);
           onSelectNode(null);
         }}
@@ -124,6 +162,9 @@ export const Canvas: React.FC<CanvasProps> = ({
           onSelectNode(null);
           onSelectEdge(null);
         }}
+        elementsSelectable={true}
+        nodesConnectable={true}
+        nodesDraggable={true}
         fitView
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#1E293B" />
