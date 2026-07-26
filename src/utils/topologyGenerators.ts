@@ -12,7 +12,7 @@ export interface TopologyGeneratorOptions {
 }
 
 /**
- * Generates an N x M Mesh (Grid) topology
+ * Generates an N x M Mesh (Grid) topology with clean perimeter/45° endpoint positioning
  */
 export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes: NoCProject['nodes']; links: NoCLinkData[] } {
   const cols = Math.max(1, options.cols || 4);
@@ -26,12 +26,12 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
   const nodes: NoCProject['nodes'] = [];
   const links: NoCLinkData[] = [];
 
-  const spacingX = 220;
-  const spacingY = 180;
-  const startX = 100;
-  const startY = 100;
+  const spacingX = 260;
+  const spacingY = 220;
+  const startX = 220;
+  const startY = 160;
 
-  // Create Routers in Grid
+  // Create Routers & Endpoints in Grid
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const routerIndex = r * cols + c;
@@ -39,6 +39,7 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
       const posX = startX + c * spacingX;
       const posY = startY + r * spacingY;
 
+      // Add Router Node
       nodes.push({
         id: routerId,
         position: { x: posX, y: posY },
@@ -50,12 +51,50 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
         },
       });
 
-      // Attach endpoint node
+      // Attach Endpoint node with optimized directional positioning
       if (attachEndpoints) {
         const epId = `EP_${routerIndex}`;
+        let epX = posX;
+        let epY = posY;
+        let rSourceHandle = 'source-top';
+        let epTargetHandle = 'target-bottom';
+
+        // Perimeter vs Inner placement rules requested by user
+        if (r === 0) {
+          // Top row: Straight above
+          epX = posX;
+          epY = posY - 130;
+          rSourceHandle = 'source-top';
+          epTargetHandle = 'target-bottom';
+        } else if (r === rows - 1) {
+          // Bottom row: Straight below
+          epX = posX;
+          epY = posY + 130;
+          rSourceHandle = 'source-bottom';
+          epTargetHandle = 'target-top';
+        } else if (c === 0) {
+          // Leftmost column (middle rows): Directly left
+          epX = posX - 210;
+          epY = posY;
+          rSourceHandle = 'source-left';
+          epTargetHandle = 'target-right';
+        } else if (c === cols - 1) {
+          // Rightmost column (middle rows): Directly right
+          epX = posX + 210;
+          epY = posY;
+          rSourceHandle = 'source-right';
+          epTargetHandle = 'target-left';
+        } else {
+          // Inner grid routers: 45 degree angle to top-right
+          epX = posX + 130;
+          epY = posY - 90;
+          rSourceHandle = 'source-right';
+          epTargetHandle = 'target-left';
+        }
+
         nodes.push({
           id: epId,
-          position: { x: posX + 60, y: posY + 70 },
+          position: { x: epX, y: epY },
           data: {
             label: `NI ${routerIndex} (${endpointType})`,
             type: 'endpoint',
@@ -63,11 +102,13 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
           },
         });
 
-        // Link Endpoint -> Router
+        // Link Endpoint -> Router with explicit cardinal handles
         links.push({
           id: `link_${epId}_${routerId}`,
           source: epId,
           target: routerId,
+          sourceHandle: epTargetHandle.replace('target', 'source'),
+          targetHandle: rSourceHandle.replace('source', 'target'),
           latency: 1,
           bandwidth: bandwidth,
           weight: 1,
@@ -78,18 +119,20 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
     }
   }
 
-  // Create Grid Inter-Router Links
+  // Create Grid Inter-Router Links with directional handle assignments
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const currentId = `R_${r * cols + c}`;
 
-      // East link
+      // East link (Right)
       if (c + 1 < cols) {
         const eastId = `R_${r * cols + (c + 1)}`;
         links.push({
           id: `link_${currentId}_${eastId}`,
           source: currentId,
           target: eastId,
+          sourceHandle: 'source-right',
+          targetHandle: 'target-left',
           latency: latency,
           bandwidth: bandwidth,
           weight: 1,
@@ -100,13 +143,15 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
         });
       }
 
-      // South link
+      // South link (Bottom)
       if (r + 1 < rows) {
         const southId = `R_${(r + 1) * cols + c}`;
         links.push({
           id: `link_${currentId}_${southId}`,
           source: currentId,
           target: southId,
+          sourceHandle: 'source-bottom',
+          targetHandle: 'target-top',
           latency: latency,
           bandwidth: bandwidth,
           weight: 1,
@@ -144,6 +189,8 @@ export function generateTorusTopology(options: TopologyGeneratorOptions): { node
         id: `link_wrap_h_${r}`,
         source: eastId,
         target: westId,
+        sourceHandle: 'source-right',
+        targetHandle: 'target-left',
         latency: latency,
         bandwidth: bandwidth,
         weight: 1,
@@ -164,6 +211,8 @@ export function generateTorusTopology(options: TopologyGeneratorOptions): { node
         id: `link_wrap_v_${c}`,
         source: southId,
         target: northId,
+        sourceHandle: 'source-bottom',
+        targetHandle: 'target-top',
         latency: latency,
         bandwidth: bandwidth,
         weight: 1,
@@ -192,9 +241,9 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
   const nodes: NoCProject['nodes'] = [];
   const links: NoCLinkData[] = [];
 
-  const centerX = 400;
-  const centerY = 300;
-  const radius = Math.max(160, count * 28);
+  const centerX = 500;
+  const centerY = 400;
+  const radius = Math.max(200, count * 35);
 
   for (let i = 0; i < count; i++) {
     const angle = (2 * Math.PI * i) / count;
@@ -215,8 +264,8 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
 
     if (attachEndpoints) {
       const epId = `EP_${i}`;
-      const epX = centerX + (radius + 80) * Math.cos(angle);
-      const epY = centerY + (radius + 80) * Math.sin(angle);
+      const epX = centerX + (radius + 140) * Math.cos(angle);
+      const epY = centerY + (radius + 140) * Math.sin(angle);
 
       nodes.push({
         id: epId,
@@ -232,6 +281,8 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
         id: `link_${epId}_${routerId}`,
         source: epId,
         target: routerId,
+        sourceHandle: 'source-bottom',
+        targetHandle: 'target-top',
         latency: 1,
         bandwidth: bandwidth,
         weight: 1,
@@ -247,6 +298,8 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
       id: `link_ring_${i}_${nextIdx}`,
       source: routerId,
       target: nextRouterId,
+      sourceHandle: 'source-right',
+      targetHandle: 'target-left',
       latency: latency,
       bandwidth: bandwidth,
       weight: 1,

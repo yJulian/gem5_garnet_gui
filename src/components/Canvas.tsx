@@ -47,12 +47,14 @@ export const Canvas: React.FC<CanvasProps> = ({
     }));
   }, [project.nodes, selectedNodeId]);
 
-  // Convert project.links to ReactFlow Edge array
+  // Convert project.links to ReactFlow Edge array mapping explicit cardinal handle IDs
   const initialEdges: Edge[] = useMemo(() => {
     return project.links.map((l) => ({
       id: l.id,
       source: l.source,
       target: l.target,
+      sourceHandle: l.sourceHandle || undefined,
+      targetHandle: l.targetHandle || undefined,
       label: `${l.bandwidth}b/c, ${l.latency}cyc`,
       animated: l.direction === 'bi',
       selected: l.id === selectedEdgeId,
@@ -76,7 +78,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     [project, onProjectChange]
   );
 
-  // Handle new connection creation
+  // Handle new connection creation preserving selected port handle IDs
   const handleConnect = useCallback(
     (params: Connection) => {
       if (!params.source || !params.target) return;
@@ -85,6 +87,8 @@ export const Canvas: React.FC<CanvasProps> = ({
         id: `link_${params.source}_${params.target}_${Date.now()}`,
         source: params.source,
         target: params.target,
+        sourceHandle: params.sourceHandle || undefined,
+        targetHandle: params.targetHandle || undefined,
         latency: 1,
         bandwidth: 128,
         weight: 1,

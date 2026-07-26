@@ -32,7 +32,7 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
 
   return (
     <div
-      className={`px-4 py-3 rounded-xl border transition-all duration-200 min-w-[160px] shadow-lg ${
+      className={`px-4 py-3 rounded-xl border transition-all duration-200 min-w-[160px] shadow-lg relative ${
         selected
           ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-900 border-blue-400 shadow-blue-500/20'
           : 'border-slate-700/60 hover:border-slate-500'
@@ -44,11 +44,63 @@ export const CustomNode = memo(({ data, selected }: NodeProps) => {
           : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-100'
       }`}
     >
-      {/* Handles for interconnect wiring */}
-      <Handle type="target" position={Position.Top} className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900" />
-      <Handle type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900" />
-      <Handle type="target" position={Position.Left} className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900" />
-      <Handle type="source" position={Position.Right} className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900" />
+      {/* 4 Cardinal Handle Groups (Top, Bottom, Left, Right) */}
+      
+      {/* TOP HANDLES */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        id="target-top"
+        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+      />
+      <Handle
+        type="source"
+        position={Position.Top}
+        id="source-top"
+        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+      />
+
+      {/* BOTTOM HANDLES */}
+      <Handle
+        type="target"
+        position={Position.Bottom}
+        id="target-bottom"
+        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+      />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="source-bottom"
+        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+      />
+
+      {/* LEFT HANDLES */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="target-left"
+        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+      />
+      <Handle
+        type="source"
+        position={Position.Left}
+        id="source-left"
+        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+      />
+
+      {/* RIGHT HANDLES */}
+      <Handle
+        type="target"
+        position={Position.Right}
+        id="target-right"
+        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="source-right"
+        className="!w-3 !h-3 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+      />
 
       {/* Header Badge & Title */}
       <div className="flex items-center gap-2 mb-1">
