@@ -12,6 +12,18 @@ export interface TopologyGeneratorOptions {
 }
 
 /**
+ * Returns the closest cardinal handle direction ('top' | 'bottom' | 'left' | 'right')
+ * given a directional vector (dx, dy).
+ */
+export function getCardinalHandle(dx: number, dy: number): 'top' | 'bottom' | 'left' | 'right' {
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? 'right' : 'left';
+  } else {
+    return dy >= 0 ? 'bottom' : 'top';
+  }
+}
+
+/**
  * Generates an N x M Mesh (Grid) topology with clean perimeter/45° endpoint positioning
  */
 export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes: NoCProject['nodes']; links: NoCLinkData[] } {
@@ -59,7 +71,6 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
         let rSourceHandle = 'source-top';
         let epTargetHandle = 'target-bottom';
 
-        // Perimeter vs Inner placement rules requested by user
         if (r === 0) {
           // Top row: Straight above
           epX = posX;
@@ -102,7 +113,7 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
           },
         });
 
-        // Link Endpoint -> Router with explicit cardinal handles
+        // Link Endpoint -> Router
         links.push({
           id: `link_${epId}_${routerId}`,
           source: epId,
@@ -180,7 +191,7 @@ export function generateTorusTopology(options: TopologyGeneratorOptions): { node
 
   const links = [...mesh.links];
 
-  // Horizontal Wraparound Links (East boundary to West boundary)
+  // Horizontal Wraparound Links
   if (cols > 2) {
     for (let r = 0; r < rows; r++) {
       const westId = `R_${r * cols + 0}`;
@@ -202,7 +213,7 @@ export function generateTorusTopology(options: TopologyGeneratorOptions): { node
     }
   }
 
-  // Vertical Wraparound Links (South boundary to North boundary)
+  // Vertical Wraparound Links
   if (rows > 2) {
     for (let c = 0; c < cols; c++) {
       const northId = `R_${0 * cols + c}`;
@@ -228,7 +239,7 @@ export function generateTorusTopology(options: TopologyGeneratorOptions): { node
 }
 
 /**
- * Generates a Ring topology with N nodes
+ * Generates a Ring topology with N nodes and geometric angle-based port handles
  */
 export function generateRingTopology(options: TopologyGeneratorOptions): { nodes: NoCProject['nodes']; links: NoCLinkData[] } {
   const count = Math.max(3, options.nodeCount || 8);
@@ -243,17 +254,24 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
 
   const centerX = 500;
   const centerY = 400;
-  const radius = Math.max(200, count * 35);
+  const radius = Math.max(220, count * 40);
 
+  // Pre-calculate positions
+  const positions: Array<{ x: number; y: number; angle: number }> = [];
   for (let i = 0; i < count; i++) {
     const angle = (2 * Math.PI * i) / count;
     const posX = centerX + radius * Math.cos(angle);
     const posY = centerY + radius * Math.sin(angle);
+    positions.push({ x: posX, y: posY, angle });
+  }
+
+  for (let i = 0; i < count; i++) {
+    const pos = positions[i];
     const routerId = `R_${i}`;
 
     nodes.push({
       id: routerId,
-      position: { x: posX, y: posY },
+      position: { x: pos.x, y: pos.y },
       data: {
         label: `Router ${i}`,
         type: 'router',
@@ -262,10 +280,18 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
       },
     });
 
+    // Attach Endpoint node radially outward with geometric handle binding
     if (attachEndpoints) {
       const epId = `EP_${i}`;
-      const epX = centerX + (radius + 140) * Math.cos(angle);
-      const epY = centerY + (radius + 140) * Math.sin(angle);
+      const epX = centerX + (radius + 150) * Math.cos(pos.angle);
+      const epY = centerY + (radius + 150) * Math.sin(pos.angle);
+
+      // Outward vector from Router to Endpoint
+      const dxEp = Math.cos(pos.angle);
+      const dyEp = Math.sin(pos.angle);
+
+      const rOutHandle = getCardinalHandle(dxEp, dyEp);
+      const epInHandle = getCardinalHandle(-dxEp, -dyEp);
 
       nodes.push({
         id: epId,
@@ -281,8 +307,8 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
         id: `link_${epId}_${routerId}`,
         source: epId,
         target: routerId,
-        sourceHandle: 'source-bottom',
-        targetHandle: 'target-top',
+        sourceHandle: `source-${epInHandle}`,
+        targetHandle: `target-${rOutHandle}`,
         latency: 1,
         bandwidth: bandwidth,
         weight: 1,
@@ -291,15 +317,24 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
       });
     }
 
-    // Connect to next router in Ring
+    // Connect to next router in Ring with geometric cardinal handles
     const nextIdx = (i + 1) % count;
+    const nextPos = positions[nextIdx];
     const nextRouterId = `R_${nextIdx}`;
+
+    // Direction vector from Router i to Router i+1
+    const dxLink = nextPos.x - pos.x;
+    const dyLink = nextPos.y - pos.y;
+
+    const srcHandleDir = getCardinalHandle(dxLink, dyLink);
+    const dstHandleDir = getCardinalHandle(-dxLink, -dyLink);
+
     links.push({
       id: `link_ring_${i}_${nextIdx}`,
       source: routerId,
       target: nextRouterId,
-      sourceHandle: 'source-right',
-      targetHandle: 'target-left',
+      sourceHandle: `source-${srcHandleDir}`,
+      targetHandle: `target-${dstHandleDir}`,
       latency: latency,
       bandwidth: bandwidth,
       weight: 1,

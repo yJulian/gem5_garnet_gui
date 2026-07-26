@@ -17,7 +17,8 @@ import {
 import '@xyflow/react/dist/style.css';
 import { CustomNode } from './CustomNode';
 import { NoCProject, NoCLinkData, NoCNodeData } from '../types/noc';
-import { Zap } from 'lucide-react';
+import { Zap, Magnet } from 'lucide-react';
+import { computeGentleGravityDrag } from '../utils/forceLayout';
 
 interface CanvasProps {
   project: NoCProject;
@@ -39,6 +40,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   onRunForceLayout,
 }) => {
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
+  const [gravityMode, setGravityMode] = useState<boolean>(true);
 
   // Construct initial nodes array from project props
   const initialNodes: Node[] = useMemo(() => {
@@ -84,25 +86,47 @@ export const Canvas: React.FC<CanvasProps> = ({
     setEdges(initialEdges);
   }, [initialEdges]);
 
-  // Handle all ReactFlow node changes (position, dimensions, selection)
+  // Handle all ReactFlow node changes
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       setNodes((nds) => applyNodeChanges(changes, nds));
-
-      // Sync position updates back to project state on drag end
-      const posChanges = changes.filter(
-        (c): c is Extract<NodeChange, { type: 'position' }> => c.type === 'position' && !!c.position && !c.dragging
-      );
-
-      if (posChanges.length > 0) {
-        const updatedProjectNodes = project.nodes.map((pn) => {
-          const posChange = posChanges.find((pc) => pc.id === pn.id);
-          return posChange && posChange.position ? { ...pn, position: posChange.position } : pn;
-        });
-        onProjectChange({ ...project, nodes: updatedProjectNodes });
-      }
     },
-    [project, onProjectChange]
+    []
+  );
+
+  // Handle gentle Home Assistant style spring trailing during active node drag
+  const handleNodeDrag = useCallback(
+    (_: any, node: Node) => {
+      if (!gravityMode) return;
+
+      const updatedMap = computeGentleGravityDrag(node.id, node.position, project.nodes, project.links);
+
+      setNodes((currentNodes) =>
+        currentNodes.map((cn) => {
+          const newPos = updatedMap.get(cn.id);
+          return newPos ? { ...cn, position: newPos } : cn;
+        })
+      );
+    },
+    [gravityMode, project.nodes, project.links]
+  );
+
+  // Commit final node positions to project state when dragging stops
+  const handleNodeDragStop = useCallback(
+    (_: any, node: Node) => {
+      const updatedProjectNodes = project.nodes.map((pn) => {
+        const currentLocalNode = nodes.find((n) => n.id === pn.id);
+        if (pn.id === node.id) {
+          return { ...pn, position: node.position };
+        } else if (currentLocalNode) {
+          return { ...pn, position: currentLocalNode.position };
+        }
+        return pn;
+      });
+
+      onProjectChange({ ...project, nodes: updatedProjectNodes });
+    },
+    [nodes, project, onProjectChange]
   );
 
   // Handle all ReactFlow edge changes
@@ -148,6 +172,8 @@ export const Canvas: React.FC<CanvasProps> = ({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        onNodeDrag={handleNodeDrag}
+        onNodeDragStop={handleNodeDragStop}
         onNodeClick={(event, node) => {
           event.stopPropagation();
           onSelectNode(node.id);
@@ -165,6 +191,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         elementsSelectable={true}
         nodesConnectable={true}
         nodesDraggable={true}
+        snapToGrid={false}
         fitView
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#1E293B" />
@@ -179,7 +206,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           maskColor="rgba(15, 23, 42, 0.7)"
         />
 
-        {/* Force Directed Layout floating control panel */}
+        {/* Force & Gravity Control Floating Panel */}
         <Panel position="top-left" className="m-4">
           <div className="glass-panel rounded-xl p-2.5 flex items-center gap-2 shadow-2xl border border-slate-800">
             <button
@@ -190,6 +217,20 @@ export const Canvas: React.FC<CanvasProps> = ({
               <Zap className="w-3.5 h-3.5 text-blue-400 fill-blue-400/20" />
               Force Auto-Layout
             </button>
+
+            <button
+              onClick={() => setGravityMode((prev) => !prev)}
+              className={`px-3 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-all ${
+                gravityMode
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
+              }`}
+              title="Toggle gentle elastic Gravity trailing during node dragging"
+            >
+              <Magnet className={`w-3.5 h-3.5 ${gravityMode ? 'text-amber-400 fill-amber-400/20' : 'text-slate-400'}`} />
+              Gravity Physics: {gravityMode ? 'ON' : 'OFF'}
+            </button>
+
             <div className="h-4 w-px bg-slate-800" />
             <span className="text-[11px] text-slate-400 font-mono px-1">
               Nodes: {project.nodes.length} | Links: {project.links.length}
