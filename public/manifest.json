@@ -3,6 +3,7 @@
   "short_name": "GarNoC",
   "description": "Visual Network-on-Chip topology designer and gem5 Python configuration generator",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#070A10",
