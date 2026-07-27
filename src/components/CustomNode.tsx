@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
-import { Network, Cpu, Layers, Zap, Code, Database, Radio } from 'lucide-react';
+import { Network, Cpu, Layers, Zap, Code, Database, Radio, Activity } from 'lucide-react';
 import { NoCNodeData, Gem5ComponentType } from '../types/noc';
 
 const getComponentIcon = (type?: Gem5ComponentType) => {
@@ -19,6 +19,8 @@ const getComponentIcon = (type?: Gem5ComponentType) => {
       return <Database className="w-4 h-4 text-purple-600 dark:text-purple-400" />;
     case 'DMA':
       return <Radio className="w-4 h-4 text-amber-600 dark:text-amber-400" />;
+    case 'Synthetic_Traffic':
+      return <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />;
     case 'Custom_Accelerator':
     default:
       return <Zap className="w-4 h-4 text-pink-600 dark:text-pink-400" />;

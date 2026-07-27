@@ -94,57 +94,88 @@ export function generateGem5PythonScript(project: NoCProject): string {
 
       if (typeKey === 'CPU_Timing') {
         lines.push(`def create_cpu_timing_helper(system, cpu_id, binary_path=None):`);
-        lines.push(`    """Factory method to instantiate and configure TimingSimpleCPU"""`);
+        lines.push(`    """Compute Tile: TimingSimpleCPU + Sequencer + Ruby L1Cache_Controller"""`);
         lines.push(`    cpu = TimingSimpleCPU(cpu_id=cpu_id)`);
         lines.push(`    cpu.createInterruptController()`);
         lines.push(`    if binary_path:`);
         lines.push(`        process = Process(cmd=[binary_path])`);
         lines.push(`        cpu.workload = process`);
         lines.push(`        cpu.createThreads()`);
-        lines.push(`    return cpu`);
+        lines.push(`    seq = RubySequencer(version=cpu_id, icache=Cache(size='32kB', assoc=2), dcache=Cache(size='64kB', assoc=4))`);
+        lines.push(`    cpu.icache_port = seq.in_ports`);
+        lines.push(`    cpu.dcache_port = seq.in_ports`);
+        lines.push(`    cntrl = L1Cache_Controller(version=cpu_id, sequencer=seq)`);
+        lines.push(`    setattr(system, f'cpu_{cpu_id}', cpu)`);
+        lines.push(`    return cntrl`);
         lines.push(``);
       } else if (typeKey === 'CPU_O3') {
         lines.push(`def create_cpu_o3_helper(system, cpu_id, binary_path=None):`);
-        lines.push(`    """Factory method to instantiate and configure DerivO3CPU"""`);
+        lines.push(`    """Compute Tile: DerivO3CPU + Sequencer + Ruby L1Cache_Controller"""`);
         lines.push(`    cpu = DerivO3CPU(cpu_id=cpu_id)`);
         lines.push(`    cpu.createInterruptController()`);
         lines.push(`    if binary_path:`);
         lines.push(`        process = Process(cmd=[binary_path])`);
         lines.push(`        cpu.workload = process`);
         lines.push(`        cpu.createThreads()`);
-        lines.push(`    return cpu`);
+        lines.push(`    seq = RubySequencer(version=cpu_id, icache=Cache(size='32kB', assoc=4), dcache=Cache(size='64kB', assoc=8))`);
+        lines.push(`    cpu.icache_port = seq.in_ports`);
+        lines.push(`    cpu.dcache_port = seq.in_ports`);
+        lines.push(`    cntrl = L1Cache_Controller(version=cpu_id, sequencer=seq)`);
+        lines.push(`    setattr(system, f'cpu_o3_{cpu_id}', cpu)`);
+        lines.push(`    return cntrl`);
         lines.push(``);
       } else if (typeKey === 'Cache_L1I') {
-        lines.push(`def create_cache_l1i_helper(system):`);
-        lines.push(`    return Cache(size='32kB', assoc=2, is_read_only=True)`);
+        lines.push(`def create_cache_l1i_helper(system, version=0):`);
+        lines.push(`    """L1 Instruction Cache Tile Controller"""`);
+        lines.push(`    return L1Cache_Controller(version=version, is_icache=True)`);
         lines.push(``);
       } else if (typeKey === 'Cache_L1D') {
-        lines.push(`def create_cache_l1d_helper(system):`);
-        lines.push(`    return Cache(size='64kB', assoc=4)`);
+        lines.push(`def create_cache_l1d_helper(system, version=0):`);
+        lines.push(`    """L1 Data Cache Tile Controller"""`);
+        lines.push(`    return L1Cache_Controller(version=version, is_dcache=True)`);
         lines.push(``);
       } else if (typeKey === 'Cache_L2') {
-        lines.push(`def create_cache_l2_helper(system):`);
-        lines.push(`    return Cache(size='256kB', assoc=8)`);
+        lines.push(`def create_cache_l2_helper(system, version=0):`);
+        lines.push(`    """Shared L2 Cache Bank Tile Controller"""`);
+        lines.push(`    return L2Cache_Controller(version=version, l2_size='256kB', assoc=8)`);
         lines.push(``);
       } else if (typeKey === 'Directory') {
-        lines.push(`def create_directory_helper(system):`);
-        lines.push(`    return Directory_Controller()`);
+        lines.push(`def create_directory_helper(system, version=0):`);
+        lines.push(`    """Directory Controller Tile"""`);
+        lines.push(`    return Directory_Controller(version=version)`);
         lines.push(``);
       } else if (typeKey === 'DRAM_DDR3') {
-        lines.push(`def create_dram_ddr3_helper(system):`);
-        lines.push(`    return MemCtrl(dram=DDR3_1600_8x8())`);
+        lines.push(`def create_dram_ddr3_helper(system, version=0):`);
+        lines.push(`    """Directory Tile + DDR3 Memory Controller"""`);
+        lines.push(`    dir_cntrl = Directory_Controller(version=version)`);
+        lines.push(`    dir_cntrl.memBuffer = MemCtrl(dram=DDR3_1600_8x8())`);
+        lines.push(`    return dir_cntrl`);
         lines.push(``);
       } else if (typeKey === 'DRAM_DDR4') {
-        lines.push(`def create_dram_ddr4_helper(system):`);
-        lines.push(`    return MemCtrl(dram=SingleChannelDDR4_2400())`);
+        lines.push(`def create_dram_ddr4_helper(system, version=0):`);
+        lines.push(`    """Directory Tile + DDR4 Memory Controller"""`);
+        lines.push(`    dir_cntrl = Directory_Controller(version=version)`);
+        lines.push(`    dir_cntrl.memBuffer = MemCtrl(dram=SingleChannelDDR4_2400())`);
+        lines.push(`    return dir_cntrl`);
         lines.push(``);
       } else if (typeKey === 'DRAM_HBM2') {
-        lines.push(`def create_dram_hbm2_helper(system):`);
-        lines.push(`    return MemCtrl(dram=HBM2_2000_4H_1x64())`);
+        lines.push(`def create_dram_hbm2_helper(system, version=0):`);
+        lines.push(`    """Directory Tile + HBM2 Memory Controller"""`);
+        lines.push(`    dir_cntrl = Directory_Controller(version=version)`);
+        lines.push(`    dir_cntrl.memBuffer = MemCtrl(dram=HBM2_2000_4H_1x64())`);
+        lines.push(`    return dir_cntrl`);
         lines.push(``);
       } else if (typeKey === 'DMA') {
-        lines.push(`def create_dma_helper(system):`);
-        lines.push(`    return DMASequencer()`);
+        lines.push(`def create_dma_helper(system, version=0):`);
+        lines.push(`    """DMA Controller Tile"""`);
+        lines.push(`    dma_seq = DMASequencer(version=version)`);
+        lines.push(`    return DMA_Controller(version=version, dma_sequencer=dma_seq)`);
+        lines.push(``);
+      } else if (typeKey === 'Synthetic_Traffic') {
+        lines.push(`def create_synthetic_traffic_helper(system, version=0):`);
+        lines.push(`    """Garnet Synthetic Traffic Benchmarking Generator Tile"""`);
+        lines.push(`    gen = GarnetSyntheticTraffic(version=version, sim_cycles=1000000, injection_rate=0.1)`);
+        lines.push(`    return L1Cache_Controller(version=version, sequencer=gen)`);
         lines.push(``);
       } else {
         // Repeated Custom Template
@@ -172,6 +203,7 @@ export function generateGem5PythonScript(project: NoCProject): string {
   });
 
   let cpuCounter = 0;
+  let versionCounter = 0;
   endpointNodes.forEach((epNode, idx) => {
     const varName = sanitizeVarName(epNode.data.label || `ep_${idx}`);
     const compType: Gem5ComponentType = epNode.data.gem5Component || 'CPU_Timing';
@@ -180,8 +212,9 @@ export function generateGem5PythonScript(project: NoCProject): string {
       : compType;
 
     const isRepeated = generatedHelpers.has(typeKey);
+    const ver = versionCounter++;
 
-    lines.push(`    # Endpoint ${idx}: ${epNode.data.label} (${isRepeated ? 'Repeated >1x -> Uses Helper' : 'Single 1x -> Inline'})`);
+    lines.push(`    # Endpoint ${idx}: ${epNode.data.label} (${isRepeated ? 'Repeated >1x -> Uses Helper' : 'Single 1x -> Inline Tile'})`);
 
     if (epNode.data.type === 'template') {
       if (epNode.data.templateInstantiationCode?.trim()) {
@@ -209,64 +242,88 @@ export function generateGem5PythonScript(project: NoCProject): string {
         } else if (compType === 'CPU_O3') {
           lines.push(`    ${varName} = create_cpu_o3_helper(system, cpu_id=${cpuCounter++}, binary_path=binary_path)`);
         } else if (compType === 'Cache_L1I') {
-          lines.push(`    ${varName} = create_cache_l1i_helper(system)`);
+          lines.push(`    ${varName} = create_cache_l1i_helper(system, version=${ver})`);
         } else if (compType === 'Cache_L1D') {
-          lines.push(`    ${varName} = create_cache_l1d_helper(system)`);
+          lines.push(`    ${varName} = create_cache_l1d_helper(system, version=${ver})`);
         } else if (compType === 'Cache_L2') {
-          lines.push(`    ${varName} = create_cache_l2_helper(system)`);
+          lines.push(`    ${varName} = create_cache_l2_helper(system, version=${ver})`);
         } else if (compType === 'Directory') {
-          lines.push(`    ${varName} = create_directory_helper(system)`);
+          lines.push(`    ${varName} = create_directory_helper(system, version=${ver})`);
         } else if (compType === 'DRAM_DDR3') {
-          lines.push(`    ${varName} = create_dram_ddr3_helper(system)`);
+          lines.push(`    ${varName} = create_dram_ddr3_helper(system, version=${ver})`);
         } else if (compType === 'DRAM_DDR4') {
-          lines.push(`    ${varName} = create_dram_ddr4_helper(system)`);
+          lines.push(`    ${varName} = create_dram_ddr4_helper(system, version=${ver})`);
         } else if (compType === 'DRAM_HBM2') {
-          lines.push(`    ${varName} = create_dram_hbm2_helper(system)`);
+          lines.push(`    ${varName} = create_dram_hbm2_helper(system, version=${ver})`);
         } else if (compType === 'DMA') {
-          lines.push(`    ${varName} = create_dma_helper(system)`);
+          lines.push(`    ${varName} = create_dma_helper(system, version=${ver})`);
+        } else if (compType === 'Synthetic_Traffic') {
+          lines.push(`    ${varName} = create_synthetic_traffic_helper(system, version=${ver})`);
         } else {
           lines.push(`    ${varName} = create_${typeKey}_helper(system)`);
         }
       } else {
         // Used ONLY 1x -> Inline instantiation
         switch (compType) {
-          case 'CPU_Timing':
-            lines.push(`    ${varName} = TimingSimpleCPU(cpu_id=${cpuCounter++})`);
-            lines.push(`    ${varName}.createInterruptController()`);
+          case 'CPU_Timing': {
+            const cid = cpuCounter++;
+            lines.push(`    ${varName}_cpu = TimingSimpleCPU(cpu_id=${cid})`);
+            lines.push(`    ${varName}_cpu.createInterruptController()`);
             lines.push(`    if binary_path:`);
-            lines.push(`        ${varName}.workload = Process(cmd=[binary_path])`);
-            lines.push(`        ${varName}.createThreads()`);
+            lines.push(`        ${varName}_cpu.workload = Process(cmd=[binary_path])`);
+            lines.push(`        ${varName}_cpu.createThreads()`);
+            lines.push(`    ${varName}_seq = RubySequencer(version=${cid}, icache=Cache(size='32kB', assoc=2), dcache=Cache(size='64kB', assoc=4))`);
+            lines.push(`    ${varName}_cpu.icache_port = ${varName}_seq.in_ports`);
+            lines.push(`    ${varName}_cpu.dcache_port = ${varName}_seq.in_ports`);
+            lines.push(`    system.${varName}_cpu = ${varName}_cpu`);
+            lines.push(`    ${varName} = L1Cache_Controller(version=${cid}, sequencer=${varName}_seq)`);
             break;
-          case 'CPU_O3':
-            lines.push(`    ${varName} = DerivO3CPU(cpu_id=${cpuCounter++})`);
-            lines.push(`    ${varName}.createInterruptController()`);
+          }
+          case 'CPU_O3': {
+            const cid = cpuCounter++;
+            lines.push(`    ${varName}_cpu = DerivO3CPU(cpu_id=${cid})`);
+            lines.push(`    ${varName}_cpu.createInterruptController()`);
             lines.push(`    if binary_path:`);
-            lines.push(`        ${varName}.workload = Process(cmd=[binary_path])`);
-            lines.push(`        ${varName}.createThreads()`);
+            lines.push(`        ${varName}_cpu.workload = Process(cmd=[binary_path])`);
+            lines.push(`        ${varName}_cpu.createThreads()`);
+            lines.push(`    ${varName}_seq = RubySequencer(version=${cid}, icache=Cache(size='32kB', assoc=4), dcache=Cache(size='64kB', assoc=8))`);
+            lines.push(`    ${varName}_cpu.icache_port = ${varName}_seq.in_ports`);
+            lines.push(`    ${varName}_cpu.dcache_port = ${varName}_seq.in_ports`);
+            lines.push(`    system.${varName}_cpu = ${varName}_cpu`);
+            lines.push(`    ${varName} = L1Cache_Controller(version=${cid}, sequencer=${varName}_seq)`);
             break;
+          }
           case 'Cache_L1I':
-            lines.push(`    ${varName} = Cache(size='32kB', assoc=2, is_read_only=True)`);
+            lines.push(`    ${varName} = L1Cache_Controller(version=${ver}, is_icache=True)`);
             break;
           case 'Cache_L1D':
-            lines.push(`    ${varName} = Cache(size='64kB', assoc=4)`);
+            lines.push(`    ${varName} = L1Cache_Controller(version=${ver}, is_dcache=True)`);
             break;
           case 'Cache_L2':
-            lines.push(`    ${varName} = Cache(size='256kB', assoc=8)`);
+            lines.push(`    ${varName} = L2Cache_Controller(version=${ver}, l2_size='256kB', assoc=8)`);
             break;
           case 'Directory':
-            lines.push(`    ${varName} = Directory_Controller()`);
+            lines.push(`    ${varName} = Directory_Controller(version=${ver})`);
             break;
           case 'DRAM_DDR3':
-            lines.push(`    ${varName} = MemCtrl(dram=DDR3_1600_8x8())`);
+            lines.push(`    ${varName} = Directory_Controller(version=${ver})`);
+            lines.push(`    ${varName}.memBuffer = MemCtrl(dram=DDR3_1600_8x8())`);
             break;
           case 'DRAM_DDR4':
-            lines.push(`    ${varName} = MemCtrl(dram=SingleChannelDDR4_2400())`);
+            lines.push(`    ${varName} = Directory_Controller(version=${ver})`);
+            lines.push(`    ${varName}.memBuffer = MemCtrl(dram=SingleChannelDDR4_2400())`);
             break;
           case 'DRAM_HBM2':
-            lines.push(`    ${varName} = MemCtrl(dram=HBM2_2000_4H_1x64())`);
+            lines.push(`    ${varName} = Directory_Controller(version=${ver})`);
+            lines.push(`    ${varName}.memBuffer = MemCtrl(dram=HBM2_2000_4H_1x64())`);
             break;
           case 'DMA':
-            lines.push(`    ${varName} = DMASequencer()`);
+            lines.push(`    ${varName}_seq = DMASequencer(version=${ver})`);
+            lines.push(`    ${varName} = DMA_Controller(version=${ver}, dma_sequencer=${varName}_seq)`);
+            break;
+          case 'Synthetic_Traffic':
+            lines.push(`    ${varName}_gen = GarnetSyntheticTraffic(version=${ver}, sim_cycles=1000000, injection_rate=0.1)`);
+            lines.push(`    ${varName} = L1Cache_Controller(version=${ver}, sequencer=${varName}_gen)`);
             break;
           case 'Custom_Accelerator':
           default:

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NoCProject, Gem5ComponentType, NoCNodeData, NoCLinkData, GlobalTemplateDef } from '../types/noc';
+import { NoCProject, NodeType, Gem5ComponentType, NoCNodeData, NoCLinkData, GlobalTemplateDef } from '../types/noc';
 import { Settings, Cpu, Network, Code, Trash2, Plus, ArrowLeftRight } from 'lucide-react';
 import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
 
@@ -181,7 +181,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Node Type</label>
               <select
                 value={selectedNode.data.type}
-                onChange={(e) => handleUpdateNode('type', e.target.value as any)}
+                onChange={(e) => handleUpdateNode('type', e.target.value as NodeType)}
                 className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               >
                 <option value="router">Router (NoC Switch)</option>
@@ -224,17 +224,18 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     onChange={(e) => handleUpdateNode('gem5Component', e.target.value as Gem5ComponentType)}
                     className="w-full bg-white dark:bg-slate-950 border border-emerald-300 dark:border-emerald-500/40 rounded px-2.5 py-1.5 text-sm text-emerald-900 dark:text-emerald-100 focus:outline-none"
                   >
-                    <option value="CPU_Timing">TimingSimpleCPU (Timing Core)</option>
-                    <option value="CPU_O3">DerivO3CPU (Out-of-Order Core)</option>
-                    <option value="Cache_L1I">L1 Instruction Cache</option>
-                    <option value="Cache_L1D">L1 Data Cache</option>
-                    <option value="Cache_L2">L2 Unified Cache</option>
-                    <option value="Directory">L3 Directory Controller</option>
-                    <option value="DRAM_DDR3">DRAM Controller (DDR3_1600_8x8)</option>
-                    <option value="DRAM_DDR4">DRAM Controller (SingleChannelDDR4_2400)</option>
-                    <option value="DRAM_HBM2">HBM2 Memory Controller (HBM2_2000_4H_1x64)</option>
-                    <option value="DMA">DMA Engine Controller</option>
-                    <option value="Custom_Accelerator">Custom Accelerator Endpoint</option>
+                    <option value="CPU_Timing">Compute Tile (Timing CPU + L1 Cache + Sequencer)</option>
+                    <option value="CPU_O3">Compute Tile (O3 CPU + L1 Cache + Sequencer)</option>
+                    <option value="Cache_L1I">L1 Instruction Cache Tile Controller</option>
+                    <option value="Cache_L1D">L1 Data Cache Tile Controller</option>
+                    <option value="Cache_L2">Shared L2 Cache Bank Tile Controller</option>
+                    <option value="Directory">Directory Controller Tile</option>
+                    <option value="DRAM_DDR3">Directory & DRAM Tile (DDR3_1600_8x8)</option>
+                    <option value="DRAM_DDR4">Directory & DRAM Tile (SingleChannelDDR4_2400)</option>
+                    <option value="DRAM_HBM2">Directory & DRAM Tile (HBM2_2000_4H_1x64)</option>
+                    <option value="DMA">DMA Controller Tile</option>
+                    <option value="Synthetic_Traffic">Synthetic Traffic Benchmarking Generator Tile</option>
+                    <option value="Custom_Accelerator">Custom Accelerator Tile</option>
                   </select>
                 </div>
               </div>

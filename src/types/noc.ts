@@ -11,6 +11,7 @@ export type Gem5ComponentType =
   | 'DRAM_DDR4'
   | 'DRAM_HBM2'
   | 'DMA'
+  | 'Synthetic_Traffic'
   | 'Custom_Accelerator';
 
 export interface NoCNodeData {
