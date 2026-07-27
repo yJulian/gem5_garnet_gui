@@ -99,11 +99,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   return (
-    <div className="w-80 border-l border-slate-800 bg-slate-900/90 glass-panel flex flex-col h-full overflow-y-auto">
+    <div className="w-80 border-l border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/90 text-slate-800 dark:text-slate-100 glass-panel flex flex-col h-full overflow-y-auto shadow-lg">
       {/* Panel Header */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-slate-200 font-semibold">
-          <Settings className="w-4 h-4 text-blue-400" />
+      <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200 font-semibold">
+          <Settings className="w-4 h-4 text-blue-500 dark:text-blue-400" />
           <span>Properties & Settings</span>
         </div>
       </div>
@@ -111,42 +111,42 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       <div className="p-4 space-y-6 flex-1">
         {/* Quick Add Node Palette */}
         <div className="space-y-2">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quick Add Component</div>
+          <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Quick Add Component</div>
           <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => onAddNode('router')}
-              className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 text-blue-300 text-xs font-medium flex flex-col items-center gap-1 transition-all"
+              className="p-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-semibold flex flex-col items-center gap-1 transition-all"
             >
-              <Network className="w-4 h-4 text-blue-400" />
+              <Network className="w-4 h-4 text-blue-500 dark:text-blue-400" />
               + Router
             </button>
             <button
               onClick={() => onAddNode('endpoint')}
-              className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-300 text-xs font-medium flex flex-col items-center gap-1 transition-all"
+              className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-semibold flex flex-col items-center gap-1 transition-all"
             >
-              <Cpu className="w-4 h-4 text-emerald-400" />
+              <Cpu className="w-4 h-4 text-emerald-500 dark:text-emerald-400" />
               + Endpoint
             </button>
             <button
               onClick={() => onAddNode('template')}
-              className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-300 text-xs font-medium flex flex-col items-center gap-1 transition-all"
+              className="p-2 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 hover:bg-amber-100 dark:hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-semibold flex flex-col items-center gap-1 transition-all"
             >
-              <Code className="w-4 h-4 text-amber-400" />
+              <Code className="w-4 h-4 text-amber-500 dark:text-amber-400" />
               + Template
             </button>
           </div>
         </div>
 
-        <hr className="border-slate-800" />
+        <hr className="border-slate-200 dark:border-slate-800" />
 
         {/* 1. NODE INSPECTOR */}
         {selectedNode ? (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Node Inspector</span>
+              <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">Node Inspector</span>
               <button
                 onClick={handleDeleteNode}
-                className="p-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-colors"
+                className="p-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 hover:text-rose-700 transition-colors"
                 title="Delete Node"
               >
                 <Trash2 className="w-4 h-4" />
@@ -155,22 +155,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
             {/* Label Input */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block font-medium">Node Label</label>
+              <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Node Label</label>
               <input
                 type="text"
                 value={selectedNode.data.label}
                 onChange={(e) => handleUpdateNode('label', e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               />
             </div>
 
             {/* Node Type Selector */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block font-medium">Node Type</label>
+              <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Node Type</label>
               <select
                 value={selectedNode.data.type}
                 onChange={(e) => handleUpdateNode('type', e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               >
                 <option value="router">Router (NoC Switch)</option>
                 <option value="endpoint">gem5 Built-in Endpoint (CPU/Cache/DRAM)</option>
@@ -180,23 +180,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
             {/* Router Specific Settings */}
             {selectedNode.data.type === 'router' && (
-              <div className="space-y-3 p-3 bg-slate-950/60 rounded-lg border border-slate-800">
+              <div className="space-y-3 p-3 bg-slate-50 dark:bg-slate-950/60 rounded-lg border border-slate-200 dark:border-slate-800">
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block font-medium">Router ID</label>
+                  <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Router ID</label>
                   <input
                     type="number"
                     value={selectedNode.data.routerId ?? 0}
                     onChange={(e) => handleUpdateNode('routerId', parseInt(e.target.value, 10))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-sm text-slate-100"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block font-medium">Router Switch Latency (Cycles)</label>
+                  <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Router Switch Latency (Cycles)</label>
                   <input
                     type="number"
                     value={selectedNode.data.latency ?? 1}
                     onChange={(e) => handleUpdateNode('latency', parseInt(e.target.value, 10))}
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-sm text-slate-100"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
               </div>
@@ -204,13 +204,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
             {/* Endpoint Specific Settings */}
             {selectedNode.data.type === 'endpoint' && (
-              <div className="space-y-3 p-3 bg-emerald-950/20 rounded-lg border border-emerald-500/20">
+              <div className="space-y-3 p-3 bg-emerald-50/80 dark:bg-emerald-950/20 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
                 <div>
-                  <label className="text-xs text-emerald-300 mb-1 block font-medium">gem5 Component Type</label>
+                  <label className="text-xs text-emerald-800 dark:text-emerald-300 mb-1 block font-medium">gem5 Component Type</label>
                   <select
                     value={selectedNode.data.gem5Component || 'CPU_Timing'}
                     onChange={(e) => handleUpdateNode('gem5Component', e.target.value as Gem5ComponentType)}
-                    className="w-full bg-slate-950 border border-emerald-500/40 rounded px-2.5 py-1.5 text-sm text-emerald-100 focus:outline-none"
+                    className="w-full bg-white dark:bg-slate-950 border border-emerald-300 dark:border-emerald-500/40 rounded px-2.5 py-1.5 text-sm text-emerald-900 dark:text-emerald-100 focus:outline-none"
                   >
                     <option value="CPU_Timing">TimingSimpleCPU (Timing Core)</option>
                     <option value="CPU_O3">DerivO3CPU (Out-of-Order Core)</option>
@@ -230,34 +230,34 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
             {/* Template Specific Settings (Top Level Class Definition Generator) */}
             {selectedNode.data.type === 'template' && (
-              <div className="space-y-3 p-3 bg-amber-950/20 rounded-lg border border-amber-500/30">
-                <div className="flex items-center gap-1.5 text-amber-300 text-xs font-semibold">
+              <div className="space-y-3 p-3 bg-amber-50/80 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-500/30">
+                <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 text-xs font-semibold">
                   <Code className="w-3.5 h-3.5" />
                   Custom Template Node Code
                 </div>
-                <p className="text-[11px] text-amber-200/80 leading-relaxed">
-                  This code will be generated at the top of the gem5 python script under <code className="text-amber-300 font-mono"># --- CUSTOM TEMPLATE DEFINITIONS ---</code>.
+                <p className="text-[11px] text-amber-900/80 dark:text-amber-200/80 leading-relaxed">
+                  This code will be generated at the top of the gem5 python script under <code className="text-amber-800 dark:text-amber-300 font-mono font-semibold"># --- CUSTOM TEMPLATE DEFINITIONS ---</code>.
                 </p>
 
                 <div>
-                  <label className="text-xs text-amber-300/90 mb-1 block font-medium">Python Class Code Block</label>
+                  <label className="text-xs text-amber-900 dark:text-amber-300/90 mb-1 block font-medium">Python Class Code Block</label>
                   <textarea
                     rows={4}
                     value={selectedNode.data.templateClassCode || ''}
                     placeholder={`class ${selectedNode.data.label.replace(/\s+/g, '')}(ClockedObject):\n    type = '${selectedNode.data.label.replace(/\s+/g, '')}'`}
                     onChange={(e) => handleUpdateNode('templateClassCode', e.target.value)}
-                    className="w-full bg-slate-950 border border-amber-500/40 rounded p-2 text-xs font-mono text-amber-100 focus:outline-none"
+                    className="w-full bg-white dark:bg-slate-950 border border-amber-300 dark:border-amber-500/40 rounded p-2 text-xs font-mono text-amber-950 dark:text-amber-100 focus:outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-amber-300/90 mb-1 block font-medium">Instantiation Snippet</label>
+                  <label className="text-xs text-amber-900 dark:text-amber-300/90 mb-1 block font-medium">Instantiation Snippet</label>
                   <textarea
                     rows={2}
                     value={selectedNode.data.templateInstantiationCode || ''}
                     placeholder={`custom_node = ${selectedNode.data.label.replace(/\s+/g, '')}()`}
                     onChange={(e) => handleUpdateNode('templateInstantiationCode', e.target.value)}
-                    className="w-full bg-slate-950 border border-amber-500/40 rounded p-2 text-xs font-mono text-amber-100 focus:outline-none"
+                    className="w-full bg-white dark:bg-slate-950 border border-amber-300 dark:border-amber-500/40 rounded p-2 text-xs font-mono text-amber-950 dark:text-amber-100 focus:outline-none"
                   />
                 </div>
               </div>
@@ -444,10 +444,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           /* 3. GLOBAL NOC CONFIG & TEMPLATES MANAGER */
           <div className="space-y-6">
             <div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">NoC Global Settings</div>
-              <div className="space-y-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">NoC Global Settings</div>
+              <div className="space-y-3 bg-slate-50 dark:bg-slate-950/60 p-3 rounded-lg border border-slate-200 dark:border-slate-800">
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block font-medium">Workload Binary Path</label>
+                  <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Workload Binary Path</label>
                   <input
                     type="text"
                     placeholder="/path/to/executable_binary"
@@ -458,12 +458,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         settings: { ...project.settings, binaryPath: e.target.value },
                       })
                     }
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono text-slate-100 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1.5 text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block font-medium">Virtual Channels / VNet</label>
+                  <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Virtual Channels / VNet</label>
                   <input
                     type="number"
                     value={project.settings.buffersPerVC}
@@ -473,12 +473,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         settings: { ...project.settings, buffersPerVC: parseInt(e.target.value, 10) },
                       })
                     }
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-sm text-slate-100"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1 text-sm text-slate-900 dark:text-slate-100"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-slate-400 mb-1 block font-medium">Routing Algorithm</label>
+                  <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Routing Algorithm</label>
                   <select
                     value={project.settings.routingAlgorithm}
                     onChange={(e) =>
@@ -487,7 +487,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         settings: { ...project.settings, routingAlgorithm: e.target.value as any },
                       })
                     }
-                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-sm text-slate-100"
+                    className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1 text-sm text-slate-900 dark:text-slate-100"
                   >
                     <option value="table">Table-based Shortest Path Routing (0)</option>
                     <option value="xy">XY Dimension Order Routing (1)</option>
@@ -499,36 +499,36 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             {/* Global Custom Python Templates */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                <div className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                   <Code className="w-3.5 h-3.5" />
                   Top Custom Templates
                 </div>
                 <button
                   onClick={handleAddGlobalTemplate}
-                  className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-medium flex items-center gap-1 transition-all"
+                  className="px-2 py-1 rounded bg-amber-500/10 dark:bg-amber-500/20 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-xs font-medium flex items-center gap-1 transition-all"
                 >
                   <Plus className="w-3 h-3" /> Add Template
                 </button>
               </div>
 
               {project.globalTemplates.length === 0 ? (
-                <p className="text-xs text-slate-500 italic p-3 bg-slate-950/40 rounded border border-slate-800">
+                <p className="text-xs text-slate-500 italic p-3 bg-slate-50 dark:bg-slate-950/40 rounded border border-slate-200 dark:border-slate-800">
                   No top-level custom python templates created yet. Added templates appear at the top of generated Python configs.
                 </p>
               ) : (
                 <div className="space-y-3">
                   {project.globalTemplates.map((t) => (
-                    <div key={t.id} className="p-3 bg-amber-950/20 rounded border border-amber-500/30 space-y-2">
+                    <div key={t.id} className="p-3 bg-amber-50/80 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-500/30 space-y-2">
                       <div className="flex items-center justify-between">
                         <input
                           type="text"
                           value={t.name}
                           onChange={(e) => handleUpdateGlobalTemplate(t.id, 'name', e.target.value)}
-                          className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-amber-200 font-semibold"
+                          className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2 py-0.5 text-xs text-amber-900 dark:text-amber-200 font-semibold"
                         />
                         <button
                           onClick={() => handleRemoveGlobalTemplate(t.id)}
-                          className="text-rose-400 hover:text-rose-300 text-xs"
+                          className="text-rose-500 hover:text-rose-600 dark:text-rose-400 text-xs"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -538,7 +538,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                         rows={3}
                         value={t.code}
                         onChange={(e) => handleUpdateGlobalTemplate(t.id, 'code', e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-800 rounded p-2 text-xs font-mono text-amber-100 focus:outline-none"
+                        className="w-full bg-white dark:bg-slate-950 border border-amber-300 dark:border-slate-800 rounded p-2 text-xs font-mono text-amber-950 dark:text-amber-100 focus:outline-none"
                       />
                     </div>
                   ))}
