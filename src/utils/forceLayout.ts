@@ -110,19 +110,19 @@ export function computeGentleGravityDrag(
   }
 
   const targetRestLength = 175; // Ideal link distance
-  const minCollisionDist = 180; // Minimum clearance to prevent card overlap (card width ~160px)
+  const minCollisionDist = 150; // Clearance to prevent card overlap
   const nodeIds = Array.from(result.keys());
 
-  // 2. Iterative physics relaxation loop (6 passes)
-  for (let pass = 0; pass < 6; pass++) {
-    // A. Spring forces on links with exponential hop-decay damping
+  // 2. Gentle iterative physics relaxation loop (2 passes)
+  for (let pass = 0; pass < 2; pass++) {
+    // A. Spring forces on links with steep hop-decay damping
     links.forEach((l) => {
       const depthSrc = hopDepth.get(l.source) ?? 99;
       const depthDst = hopDepth.get(l.target) ?? 99;
       const minDepth = Math.min(depthSrc, depthDst);
 
-      // Continuous exponential decay curve across all graph levels: f(depth) = 0.07 * (0.55^depth)
-      const springStiffness = 0.07 * Math.pow(0.55, minDepth);
+      // Gentle exponential decay curve across graph levels: f(depth) = 0.015 * (0.35^depth)
+      const springStiffness = 0.015 * Math.pow(0.35, minDepth);
 
       const posA = result.get(l.source)!;
       const posB = result.get(l.target)!;
@@ -158,7 +158,7 @@ export function computeGentleGravityDrag(
       }
     });
 
-    // B. Collision Repulsion (strictly prevents overlapping of ANY cards)
+    // B. Collision Repulsion (gentle clearance)
     for (let i = 0; i < nodeIds.length; i++) {
       for (let j = i + 1; j < nodeIds.length; j++) {
         const idA = nodeIds[i];
@@ -174,8 +174,8 @@ export function computeGentleGravityDrag(
         if (dist < minCollisionDist) {
           if (dist < 1) dist = 1;
           const overlap = minCollisionDist - dist;
-          const pushX = (dx / dist) * overlap * 0.40;
-          const pushY = (dy / dist) * overlap * 0.40;
+          const pushX = (dx / dist) * overlap * 0.15;
+          const pushY = (dy / dist) * overlap * 0.15;
 
           if (idA === draggedNodeId) {
             result.set(idB, {
