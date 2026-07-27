@@ -23,6 +23,7 @@ import { NoCProject, NoCLinkData, NoCNodeData } from '../types/noc';
 import { Zap, Magnet, Eye, EyeOff } from 'lucide-react';
 import { computeGentleGravityDrag } from '../utils/forceLayout';
 import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
+import { validateProjectSanity } from '../utils/validationUtils';
 
 interface CanvasProps {
   project: NoCProject;
@@ -91,6 +92,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     return map;
   }, [project.nodes, project.links]);
 
+  // Compute real-time project sanity issues
+  const sanityIssues = useMemo(() => validateProjectSanity(project), [project]);
+
   // Construct initial nodes array with dynamic connection dimming & target leuchten
   const initialNodes: Node[] = useMemo(() => {
     const sourceNode = project.nodes.find((pn) => pn.id === connectingSourceNodeId);
@@ -107,6 +111,11 @@ export const Canvas: React.FC<CanvasProps> = ({
       const isShaking = n.id === shakingNodeId;
       const isBlocking = blockingNodeIds?.includes(n.id);
 
+      const nodeIssues = sanityIssues.filter((i) => i.nodeId === n.id);
+      const hasSanityError = nodeIssues.some((i) => i.type === 'error');
+      const hasSanityWarning = nodeIssues.some((i) => i.type === 'warning');
+      const sanityIssueTooltip = nodeIssues.map((i) => `${i.type.toUpperCase()}: ${i.title} - ${i.message}`).join('\n');
+
       return {
         id: n.id,
         type: 'custom',
@@ -121,11 +130,14 @@ export const Canvas: React.FC<CanvasProps> = ({
           isValidTarget,
           isShaking,
           isBlocking,
+          hasSanityError,
+          hasSanityWarning,
+          sanityIssueTooltip,
         } as unknown as Record<string, unknown>,
         selected: n.id === selectedNodeId,
       };
     });
-  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId, shakingNodeId, blockingNodeIds]);
+  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId, shakingNodeId, blockingNodeIds, sanityIssues]);
 
   // Construct initial edges array using CustomEdge renderer
   const initialEdges: Edge[] = useMemo(() => {

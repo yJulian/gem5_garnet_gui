@@ -26,6 +26,27 @@ export interface NoCNodeData {
   templateClassCode?: string; // Python definition placed at top of python config script
   templateInstantiationCode?: string; // Python instantiation code block
   
+  // Memory Mapped Address Region
+  addrRangeStart?: string; // e.g. "0x80000000"
+  addrRangeSize?: string;  // e.g. "512MB", "1GB", "2GB"
+
+  // Component Specific Customizations
+  clock?: string;          // e.g. "2.5GHz", "3GHz" (Overrides global clockDomain if set)
+  workloadCmd?: string;    // Custom per-node binary execution command/path
+
+  // Cache & Controller Configurations
+  cacheSize?: string;      // e.g. "32kB", "64kB", "256kB", "1MB", "2MB"
+  cacheAssoc?: number;     // e.g. 2, 4, 8, 16
+  l1iSize?: string;
+  l1iAssoc?: number;
+  l1dSize?: string;
+  l1dAssoc?: number;
+
+  // Synthetic Traffic Generator Specifics
+  injectionRate?: number;  // Injection rate in packets/cycle (e.g. 0.1)
+  trafficPattern?: 'uniform_random' | 'bit_complement' | 'tornado' | 'transpose';
+  simCycles?: number;      // Number of simulation cycles (e.g. 1000000)
+
   // Attached endpoint metadata for Router nodes
   attachedEndpointCount?: number;
   attachedEndpointNames?: string[];

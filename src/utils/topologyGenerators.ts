@@ -176,7 +176,29 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
     }
   }
 
+  // Assign automatic non-overlapping memory regions for any memory endpoints
+  assignAutomaticMemoryRanges(nodes);
+
   return { nodes, links: recalculateAutoHandles(nodes, links) };
+}
+
+/**
+ * Assigns non-overlapping memory regions to DRAM/Directory endpoints in a project graph.
+ */
+export function assignAutomaticMemoryRanges(nodes: NoCProject['nodes']): void {
+  const memoryTypes = ['DRAM_DDR3', 'DRAM_DDR4', 'DRAM_HBM2', 'Directory'];
+  let currentStart = 0x80000000n; // Base address 2GB
+  const defaultSize = 0x20000000n; // 512MB per tile
+
+  nodes.forEach((n) => {
+    if (n.data.type === 'endpoint' && memoryTypes.includes(n.data.gem5Component || '')) {
+      if (!n.data.addrRangeStart) {
+        n.data.addrRangeStart = '0x' + currentStart.toString(16).toUpperCase();
+        n.data.addrRangeSize = '512MB';
+        currentStart += defaultSize;
+      }
+    }
+  });
 }
 
 /**
@@ -343,6 +365,9 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
       direction: bidirectional ? 'bi' : 'uni',
     });
   }
+
+  // Assign automatic non-overlapping memory regions for any memory endpoints
+  assignAutomaticMemoryRanges(nodes);
 
   return { nodes, links: recalculateAutoHandles(nodes, links) };
 }

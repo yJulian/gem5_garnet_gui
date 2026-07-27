@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
-import { Network, Cpu, Layers, Zap, Code, Database, Radio, Activity } from 'lucide-react';
+import { Network, Cpu, Layers, Zap, Code, Database, Radio, Activity, AlertTriangle } from 'lucide-react';
 import { NoCNodeData, Gem5ComponentType } from '../types/noc';
 
 const getComponentIcon = (type?: Gem5ComponentType) => {
@@ -35,6 +35,9 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
     isValidTarget?: boolean;
     isShaking?: boolean;
     isBlocking?: boolean;
+    hasSanityError?: boolean;
+    hasSanityWarning?: boolean;
+    sanityIssueTooltip?: string;
   };
   const isRouter = nodeData.type === 'router';
   const isTemplate = nodeData.type === 'template';
@@ -42,6 +45,8 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
   const isValidTarget = nodeData.isValidTarget;
   const isShaking = nodeData.isShaking;
   const isBlocking = nodeData.isBlocking;
+  const hasSanityError = nodeData.hasSanityError;
+  const hasSanityWarning = nodeData.hasSanityWarning;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -55,9 +60,17 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
       onClick={handleClick}
       className={`px-4 py-3 rounded-xl border transition-all duration-300 min-w-[160px] shadow-lg relative cursor-pointer select-none ${
         isShaking
-          ? 'animate-shake ring-2 ring-rose-500 border-rose-500 dark:border-rose-500 shadow-xl shadow-rose-500/40 z-30'
+          ? 'animate-shake ring-4 ring-rose-500 border-rose-500 shadow-2xl shadow-rose-500/60 z-30'
           : isBlocking
-          ? 'ring-2 ring-amber-500 dark:ring-amber-400 border-amber-500 dark:border-amber-400 shadow-xl shadow-amber-500/40 scale-105 animate-pulse z-30'
+          ? 'ring-4 ring-amber-500 dark:ring-amber-400 border-amber-500 shadow-2xl shadow-amber-500/50 scale-105 animate-pulse z-30'
+          : hasSanityError
+          ? selected
+            ? 'ring-4 ring-rose-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 border-rose-500 shadow-xl shadow-rose-500/50 animate-pulse z-20'
+            : 'ring-2 ring-rose-500 border-rose-500 shadow-xl shadow-rose-500/40 animate-pulse z-10'
+          : hasSanityWarning
+          ? selected
+            ? 'ring-4 ring-amber-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 border-amber-500 shadow-xl shadow-amber-500/40 animate-pulse z-20'
+            : 'ring-2 ring-amber-500 border-amber-500 shadow-xl shadow-amber-500/30 animate-pulse z-10'
           : isDimmed
           ? 'opacity-30 grayscale blur-[0.3px] pointer-events-none scale-95 border-slate-300 dark:border-slate-800'
           : isValidTarget
@@ -81,6 +94,21 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
         >
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
           <span>{nodeData.attachedEndpointCount}</span>
+        </div>
+      )}
+
+      {/* Sanity Error / Warning Badge */}
+      {(hasSanityError || hasSanityWarning) && (
+        <div
+          className={`absolute -top-2 -left-2 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1 shadow-lg z-20 animate-bounce ${
+            hasSanityError
+              ? 'bg-rose-500 text-white border border-rose-300'
+              : 'bg-amber-500 text-white border border-amber-300'
+          }`}
+          title={nodeData.sanityIssueTooltip || 'Sanity check alert'}
+        >
+          <AlertTriangle className="w-3 h-3 stroke-[2.5]" />
+          <span>{hasSanityError ? 'ERR' : 'WARN'}</span>
         </div>
       )}
 
@@ -175,6 +203,14 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
           </div>
         </div>
       </div>
+
+      {/* Memory Range Pill Badge (if mapped) */}
+      {nodeData.addrRangeStart && nodeData.addrRangeSize && (
+        <div className="mt-1 px-1.5 py-0.5 rounded bg-purple-500/10 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-500/30 text-[10px] font-mono flex items-center gap-1 justify-between shadow-sm">
+          <span>💾 {nodeData.addrRangeStart}</span>
+          <span className="font-bold text-[9.5px]">{nodeData.addrRangeSize}</span>
+        </div>
+      )}
 
       {/* Latency / VC Metadata Pills */}
       <div className="mt-2 pt-1.5 border-t border-slate-200 dark:border-slate-700/50 flex items-center justify-between text-[11px] font-mono">
