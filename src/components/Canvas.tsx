@@ -18,6 +18,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { CustomNode } from './CustomNode';
+import { CustomEdge } from './CustomEdge';
 import { NoCProject, NoCLinkData, NoCNodeData } from '../types/noc';
 import { Zap, Magnet, Eye, EyeOff } from 'lucide-react';
 import { computeGentleGravityDrag } from '../utils/forceLayout';
@@ -45,6 +46,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   theme = 'dark',
 }) => {
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
+  const edgeTypes = useMemo(() => ({ custom: CustomEdge }), []);
   const [gravityMode, setGravityMode] = useState<boolean>(true);
   const [hideEndpoints, setHideEndpoints] = useState<boolean>(false);
 
@@ -117,7 +119,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     });
   }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId]);
 
-  // Construct initial edges array from project props
+  // Construct initial edges array using CustomEdge renderer
   const initialEdges: Edge[] = useMemo(() => {
     // Ensure all automatic link handles are pre-calculated to cardinal positions
     const autoSnappedLinks = recalculateAutoHandles(project.nodes, project.links);
@@ -128,6 +130,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
       return {
         id: l.id,
+        type: 'custom',
         source: l.source,
         target: l.target,
         sourceHandle: normalizeHandleId(l.sourceHandle),
@@ -135,35 +138,25 @@ export const Canvas: React.FC<CanvasProps> = ({
         label: `${l.bandwidth}b/c, ${l.latency}cyc`,
         animated: l.direction === 'bi',
         selected: isSelected,
-        interactionWidth: 30,
+        interactionWidth: 32,
+        data: {
+          onSelectEdge,
+          onSelectNode,
+          theme,
+          bandwidth: l.bandwidth,
+          latency: l.latency,
+          direction: l.direction,
+        },
         style: isSelected
-          ? { stroke: '#3B82F6', strokeWidth: 5, filter: 'drop-shadow(0 0 10px rgba(59, 130, 246, 0.9))', cursor: 'pointer' }
+          ? { stroke: '#3B82F6', strokeWidth: 5, filter: 'drop-shadow(0 0 10px rgba(59, 130, 246, 0.95))', cursor: 'pointer' }
           : {
               stroke: isLight ? (l.direction === 'bi' ? '#2563EB' : '#64748B') : (l.direction === 'bi' ? '#3B82F6' : '#64748B'),
               strokeWidth: 2.5,
               cursor: 'pointer',
             },
-        labelStyle: {
-          fill: isLight ? '#334155' : '#94A3B8',
-          fontSize: 10,
-          fontWeight: 600,
-          fontFamily: 'monospace',
-          cursor: 'pointer',
-          pointerEvents: 'all',
-        },
-        labelBgStyle: {
-          fill: isLight ? '#FFFFFF' : '#0F172A',
-          fillOpacity: 0.95,
-          rx: 6,
-          ry: 6,
-          stroke: isSelected ? '#3B82F6' : isLight ? '#CBD5E1' : '#334155',
-          strokeWidth: isSelected ? 2 : 1,
-          cursor: 'pointer',
-          pointerEvents: 'all',
-        },
       };
     });
-  }, [project.nodes, project.links, selectedEdgeId, theme]);
+  }, [project.nodes, project.links, selectedEdgeId, theme, onSelectEdge, onSelectNode]);
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
@@ -340,6 +333,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         nodes={visibleNodes}
         edges={visibleEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
@@ -356,9 +350,18 @@ export const Canvas: React.FC<CanvasProps> = ({
         onEdgeClick={(event, edge) => {
           event.stopPropagation();
           onSelectEdge(edge.id);
-          onSelectNode(null);
         }}
-        onPaneClick={() => {
+        onPaneClick={(event) => {
+          const target = event?.target as HTMLElement | SVGElement | null;
+          if (
+            target &&
+            (target.closest('.react-flow__edge') ||
+              target.closest('.react-flow__edgelabel-renderer') ||
+              target.closest('.react-flow__node') ||
+              target.closest('.nodrag'))
+          ) {
+            return;
+          }
           onSelectNode(null);
           onSelectEdge(null);
         }}
