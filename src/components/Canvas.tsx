@@ -17,7 +17,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { CustomNode } from './CustomNode';
 import { NoCProject, NoCLinkData, NoCNodeData } from '../types/noc';
-import { Zap, Magnet } from 'lucide-react';
+import { Zap, Magnet, Eye, EyeOff } from 'lucide-react';
 import { computeGentleGravityDrag } from '../utils/forceLayout';
 import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
 
@@ -44,21 +44,51 @@ export const Canvas: React.FC<CanvasProps> = ({
 }) => {
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
   const [gravityMode, setGravityMode] = useState<boolean>(true);
+  const [hideEndpoints, setHideEndpoints] = useState<boolean>(false);
+
+  // Calculate attached endpoints and endpoint names for each Router node
+  const routerAttachmentMap = useMemo(() => {
+    const map = new Map<string, { count: number; names: string[] }>();
+
+    project.nodes.forEach((n) => {
+      if (n.data.type === 'router') {
+        const connectedLinks = project.links.filter((l) => l.source === n.id || l.target === n.id);
+        const endpointNames: string[] = [];
+
+        connectedLinks.forEach((l) => {
+          const otherId = l.source === n.id ? l.target : l.source;
+          const otherNode = project.nodes.find((other) => other.id === otherId);
+          if (otherNode && otherNode.data.type !== 'router') {
+            endpointNames.push(otherNode.data.label || otherNode.id);
+          }
+        });
+
+        map.set(n.id, { count: endpointNames.length, names: endpointNames });
+      }
+    });
+
+    return map;
+  }, [project.nodes, project.links]);
 
   // Construct initial nodes array from project props
   const initialNodes: Node[] = useMemo(() => {
-    return project.nodes.map((n) => ({
-      id: n.id,
-      type: 'custom',
-      position: n.position,
-      data: {
-        ...n.data,
-        nodeId: n.id,
-        onSelectNode,
-      } as unknown as Record<string, unknown>,
-      selected: n.id === selectedNodeId,
-    }));
-  }, [project.nodes, selectedNodeId, onSelectNode]);
+    return project.nodes.map((n) => {
+      const attachment = routerAttachmentMap.get(n.id);
+      return {
+        id: n.id,
+        type: 'custom',
+        position: n.position,
+        data: {
+          ...n.data,
+          attachedEndpointCount: attachment?.count || 0,
+          attachedEndpointNames: attachment?.names || [],
+          nodeId: n.id,
+          onSelectNode,
+        } as unknown as Record<string, unknown>,
+        selected: n.id === selectedNodeId,
+      };
+    });
+  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap]);
 
   // Construct initial edges array from project props
   const initialEdges: Edge[] = useMemo(() => {
@@ -125,7 +155,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   // Handle Home Assistant style spring trailing & physical collision pushing during active node drag
   const handleNodeDrag = useCallback(
-    (_: any, draggedNode: Node) => {
+    (_: unknown, draggedNode: Node) => {
       setNodes((currentNodes) => {
         const livePosArray = currentNodes.map((cn) => ({
           id: cn.id,
@@ -172,7 +202,7 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   // Commit final node positions & auto handles to project state when dragging stops
   const handleNodeDragStop = useCallback(
-    (_: any, node: Node) => {
+    (_: unknown, node: Node) => {
       const updatedProjectNodes = project.nodes.map((pn) => {
         const currentLocalNode = nodes.find((n) => n.id === pn.id);
         if (pn.id === node.id) {
@@ -202,10 +232,45 @@ export const Canvas: React.FC<CanvasProps> = ({
     []
   );
 
+  // Enforce Garnet NoC connection rules: At least one node MUST be a Router!
+  const isValidConnection = useCallback(
+    (edgeOrConnection: Edge | Connection) => {
+      if (!edgeOrConnection.source || !edgeOrConnection.target) return false;
+      if (edgeOrConnection.source === edgeOrConnection.target) return false;
+
+      const srcNode = project.nodes.find((n) => n.id === edgeOrConnection.source);
+      const dstNode = project.nodes.find((n) => n.id === edgeOrConnection.target);
+
+      if (!srcNode || !dstNode) return false;
+
+      // Direct Endpoint-to-Endpoint or Template-to-Endpoint connections are invalid in gem5 Garnet NoC.
+      const isSrcRouter = srcNode.data.type === 'router';
+      const isDstRouter = dstNode.data.type === 'router';
+
+      return isSrcRouter || isDstRouter;
+    },
+    [project.nodes]
+  );
+
+  // Filter visible nodes and edges based on hideEndpoints toggle
+  const visibleNodes = useMemo(() => {
+    if (!hideEndpoints) return nodes;
+    const routerIds = new Set(project.nodes.filter((pn) => pn.data.type === 'router').map((pn) => pn.id));
+    return nodes.filter((n) => routerIds.has(n.id));
+  }, [nodes, hideEndpoints, project.nodes]);
+
+  // Filter visible edges based on hideEndpoints toggle
+  const visibleEdges = useMemo(() => {
+    if (!hideEndpoints) return edges;
+    const routerIds = new Set(project.nodes.filter((pn) => pn.data.type === 'router').map((pn) => pn.id));
+    return edges.filter((e) => routerIds.has(e.source) && routerIds.has(e.target));
+  }, [edges, hideEndpoints, project.nodes]);
+
   // Handle new connection creation preserving selected port handle IDs
   const handleConnect = useCallback(
     (params: Connection) => {
       if (!params.source || !params.target) return;
+      if (!isValidConnection(params)) return;
 
       const normSrc = normalizeHandleId(params.sourceHandle || undefined);
       const normDst = normalizeHandleId(params.targetHandle || undefined);
@@ -232,7 +297,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         links: updatedLinks,
       });
     },
-    [project, onProjectChange]
+    [project, onProjectChange, isValidConnection]
   );
 
   const isLight = theme === 'light';
@@ -240,12 +305,13 @@ export const Canvas: React.FC<CanvasProps> = ({
   return (
     <div className={`w-full h-full relative ${isLight ? 'bg-slate-100' : 'bg-dark-950'}`}>
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={visibleNodes}
+        edges={visibleEdges}
         nodeTypes={nodeTypes}
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        isValidConnection={isValidConnection}
         onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
         onNodeClick={(event, node) => {
@@ -314,6 +380,25 @@ export const Canvas: React.FC<CanvasProps> = ({
             >
               <Magnet className={`w-3.5 h-3.5 ${gravityMode ? 'text-amber-500 fill-amber-500/20' : 'text-slate-400'}`} />
               Push Physics: {gravityMode ? 'ON' : 'OFF'}
+            </button>
+
+            <button
+              onClick={() => setHideEndpoints((prev) => !prev)}
+              className={`px-3 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-all ${
+                hideEndpoints
+                  ? 'bg-purple-600/20 text-purple-600 dark:text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
+                  : isLight
+                  ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
+              }`}
+              title="Hide all Endpoints and Templates to inspect only the pure Router network topology layout"
+            >
+              {hideEndpoints ? (
+                <EyeOff className="w-3.5 h-3.5 text-purple-500" />
+              ) : (
+                <Eye className="w-3.5 h-3.5 text-slate-400" />
+              )}
+              Router Only: {hideEndpoints ? 'ON' : 'OFF'}
             </button>
 
             <div className={`h-4 w-px ${isLight ? 'bg-slate-300' : 'bg-slate-800'}`} />

@@ -25,6 +25,10 @@ export interface NoCNodeData {
   templateClassCode?: string; // Python definition placed at top of python config script
   templateInstantiationCode?: string; // Python instantiation code block
   
+  // Attached endpoint metadata for Router nodes
+  attachedEndpointCount?: number;
+  attachedEndpointNames?: string[];
+  
   // Custom metadata
   notes?: string;
   [key: string]: any;

@@ -52,6 +52,17 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
           : 'bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-400/60 dark:border-emerald-500/40 text-emerald-950 dark:text-emerald-100'
       }`}
     >
+      {/* Router Attached Endpoint Badge / Dot Indicator */}
+      {isRouter && (nodeData.attachedEndpointCount ?? 0) > 0 && (
+        <div
+          className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 text-[10px] font-mono font-semibold flex items-center gap-1 shadow-md backdrop-blur-md z-20"
+          title={`Attached Endpoints (${nodeData.attachedEndpointCount}): ${nodeData.attachedEndpointNames?.join(', ') || 'N/A'}`}
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+          <span>{nodeData.attachedEndpointCount}</span>
+        </div>
+      )}
+
       {/* TOP HANDLE (Centered) */}
       <Handle
         type="target"
