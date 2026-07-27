@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -21,9 +21,9 @@ import { CustomNode } from './CustomNode';
 import { CustomEdge } from './CustomEdge';
 import { NoCProject, NoCLinkData, NoCNodeData } from '../types/noc';
 import { Zap, Magnet, Eye, EyeOff } from 'lucide-react';
-import { computeGentleGravityDrag } from '../utils/forceLayout';
 import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
 import { validateProjectSanity } from '../utils/validationUtils';
+import { InteractiveForceEngine } from '../utils/interactiveForceEngine';
 
 interface CanvasProps {
   project: NoCProject;
@@ -181,6 +181,55 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
 
+  const forceEngineRef = useRef<InteractiveForceEngine | null>(null);
+
+  // Initialize Interactive Force Engine and attach physics tick callback
+  useEffect(() => {
+    const engine = new InteractiveForceEngine((positions) => {
+      setNodes((currentNodes) => {
+        const updatedNodes = currentNodes.map((cn) => {
+          const p = positions.get(cn.id);
+          return p ? { ...cn, position: p } : cn;
+        });
+
+        const autoLinks = recalculateAutoHandles(
+          updatedNodes.map((n) => ({ id: n.id, position: n.position })),
+          project.links
+        );
+
+        setEdges((currentEdges) =>
+          currentEdges.map((e) => {
+            const matchLink = autoLinks.find((l) => l.id === e.id);
+            if (!matchLink) return e;
+            return {
+              ...e,
+              sourceHandle: normalizeHandleId(matchLink.sourceHandle),
+              targetHandle: normalizeHandleId(matchLink.targetHandle),
+            };
+          })
+        );
+
+        return updatedNodes;
+      });
+    });
+
+    forceEngineRef.current = engine;
+
+    return () => {
+      engine.stop();
+    };
+  }, [project.links]);
+
+  // Synchronize nodes & links with physics simulation engine
+  useEffect(() => {
+    if (gravityMode && forceEngineRef.current) {
+      forceEngineRef.current.syncNodes(project.nodes);
+      forceEngineRef.current.setLinks(project.links);
+    } else if (!gravityMode && forceEngineRef.current) {
+      forceEngineRef.current.stop();
+    }
+  }, [project.nodes, project.links, gravityMode]);
+
   // Sync state when project or selection changes externally
   useEffect(() => {
     setNodes(initialNodes);
@@ -198,60 +247,45 @@ export const Canvas: React.FC<CanvasProps> = ({
     []
   );
 
-  // Handle Home Assistant style spring trailing & physical collision pushing during active node drag
-  const handleNodeDrag = useCallback(
-    (_: unknown, draggedNode: Node) => {
-      setNodes((currentNodes) => {
-        const livePosArray = currentNodes.map((cn) => ({
-          id: cn.id,
-          position: cn.id === draggedNode.id ? draggedNode.position : cn.position,
-        }));
-
-        let updatedPositionsMap: Map<string, { x: number; y: number }>;
-
-        if (gravityMode) {
-          updatedPositionsMap = computeGentleGravityDrag(draggedNode.id, draggedNode.position, livePosArray, project.links);
-        } else {
-          updatedPositionsMap = new Map();
-          livePosArray.forEach((n) => updatedPositionsMap.set(n.id, n.position));
-        }
-
-        const newNodesPosArray = currentNodes.map((cn) => ({
-          id: cn.id,
-          position: updatedPositionsMap.get(cn.id) || cn.position,
-        }));
-
-        // Recalculate automatic connection handles dynamically during drag
-        const autoLinks = recalculateAutoHandles(newNodesPosArray, project.links);
-
-        setEdges((currentEdges) =>
-          currentEdges.map((e) => {
-            const matchLink = autoLinks.find((l) => l.id === e.id);
-            if (!matchLink) return e;
-            return {
-              ...e,
-              sourceHandle: normalizeHandleId(matchLink.sourceHandle),
-              targetHandle: normalizeHandleId(matchLink.targetHandle),
-            };
-          })
-        );
-
-        return currentNodes.map((cn) => {
-          const newPos = updatedPositionsMap.get(cn.id);
-          return newPos ? { ...cn, position: newPos } : cn;
-        });
-      });
+  // Drag Start: Start dragging node in physics engine
+  const handleNodeDragStart = useCallback(
+    (_: unknown, node: Node) => {
+      if (gravityMode && forceEngineRef.current) {
+        forceEngineRef.current.startDrag(node.id);
+      }
     },
-    [gravityMode, project.links]
+    [gravityMode]
   );
 
-  // Commit final node positions & auto handles to project state when dragging stops
+  // Drag Move: Update active drag position in real time
+  const handleNodeDrag = useCallback(
+    (_: unknown, draggedNode: Node) => {
+      if (gravityMode && forceEngineRef.current) {
+        forceEngineRef.current.updateDragPos(draggedNode.id, draggedNode.position.x, draggedNode.position.y);
+      } else {
+        setNodes((currentNodes) =>
+          currentNodes.map((cn) => (cn.id === draggedNode.id ? { ...cn, position: draggedNode.position } : cn))
+        );
+      }
+    },
+    [gravityMode]
+  );
+
+  // Drag Stop: Store drop coordinates as Soft Target Anchor (anchorX, anchorY) and commit
   const handleNodeDragStop = useCallback(
     (_: unknown, node: Node) => {
+      if (gravityMode && forceEngineRef.current) {
+        forceEngineRef.current.endDrag(node.id, node.position.x, node.position.y);
+      }
+
       const updatedProjectNodes = project.nodes.map((pn) => {
         const currentLocalNode = nodes.find((n) => n.id === pn.id);
         if (pn.id === node.id) {
-          return { ...pn, position: node.position };
+          return {
+            ...pn,
+            position: node.position,
+            data: { ...pn.data, anchorX: node.position.x, anchorY: node.position.y },
+          };
         } else if (currentLocalNode) {
           return { ...pn, position: currentLocalNode.position };
         }
@@ -266,7 +300,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         links: updatedProjectLinks,
       });
     },
-    [nodes, project, onProjectChange]
+    [gravityMode, nodes, project, onProjectChange]
   );
 
   // Handle all ReactFlow edge changes
@@ -360,8 +394,19 @@ export const Canvas: React.FC<CanvasProps> = ({
         onConnectStart={handleConnectStart}
         onConnectEnd={handleConnectEnd}
         isValidConnection={isValidConnection}
+        onNodeDragStart={handleNodeDragStart}
         onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
+        onNodeDoubleClick={(event, node) => {
+          event.stopPropagation();
+          if (forceEngineRef.current) {
+            forceEngineRef.current.clearAnchor(node.id);
+          }
+          const updatedProjectNodes = project.nodes.map((pn) =>
+            pn.id === node.id ? { ...pn, data: { ...pn.data, anchorX: undefined, anchorY: undefined } } : pn
+          );
+          onProjectChange({ ...project, nodes: updatedProjectNodes });
+        }}
         onNodeClick={(event, node) => {
           event.stopPropagation();
           onSelectNode(node.id);

@@ -51,6 +51,11 @@ export interface NoCNodeData {
   attachedEndpointCount?: number;
   attachedEndpointNames?: string[];
   
+  // Interactive Force Graph Physics Metadata
+  isPinned?: boolean;
+  anchorX?: number;
+  anchorY?: number;
+
   // Custom metadata
   notes?: string;
   [key: string]: any;
