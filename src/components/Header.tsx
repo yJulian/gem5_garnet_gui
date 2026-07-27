@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NoCProject } from '../types/noc';
-import { Network, FolderOpen, Save, Download, Eye, Plus, Sparkles, Sun, Moon, Smartphone, AlertTriangle, CheckCircle2, ShieldAlert, Wand2 } from 'lucide-react';
+import { Network, FolderOpen, Save, Download, Eye, Plus, Sparkles, Sun, Moon, Smartphone, AlertTriangle, CheckCircle2, ShieldAlert, Wand2, Settings, Activity } from 'lucide-react';
 import { openProjectGnoc, saveProjectGnoc, exportGem5Python } from '../utils/fileSystem';
 import { validateProjectSanity, autoFixAllMemoryOverlaps } from '../utils/validationUtils';
 
@@ -13,6 +13,8 @@ interface HeaderProps {
   onSelectNode?: (id: string | null) => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  animateFlow?: boolean;
+  onToggleAnimateFlow?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,9 +26,12 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectNode,
   theme,
   onToggleTheme,
+  animateFlow = false,
+  onToggleAnimateFlow,
 }) => {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<Event | null>(null);
   const [showSanityFlyout, setShowSanityFlyout] = useState(false);
+  const [showSettingsFlyout, setShowSettingsFlyout] = useState(false);
 
   const sanityIssues = validateProjectSanity(project);
   const errorCount = sanityIssues.filter((i) => i.type === 'error').length;
@@ -44,8 +49,9 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleInstallPWA = async () => {
     if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    const promptEvent = deferredPrompt as Event & { prompt: () => void; userChoice: Promise<{ outcome: string }> };
+    promptEvent.prompt();
+    const { outcome } = await promptEvent.userChoice;
     if (outcome === 'accepted') {
       setDeferredPrompt(null);
     }
@@ -84,9 +90,6 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-slate-100 focus:bg-slate-950/60 hover:border-slate-700'
               }`}
             />
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 font-mono font-bold tracking-wide">
-              GarNoC
-            </span>
           </div>
         </div>
       </div>
@@ -96,7 +99,10 @@ export const Header: React.FC<HeaderProps> = ({
         {/* Sanity Check Badge Button */}
         <div className="relative">
           <button
-            onClick={() => setShowSanityFlyout((prev) => !prev)}
+            onClick={() => {
+              setShowSanityFlyout((prev) => !prev);
+              setShowSettingsFlyout(false);
+            }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
               errorCount > 0
                 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/40 shadow-sm shadow-rose-500/20 animate-pulse'
@@ -217,7 +223,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
       </div>
 
-      {/* Right File Import / Export Toolbar */}
+      {/* Right File Import / Export & Settings Toolbar */}
       <div className="flex items-center gap-2">
         <button
           onClick={handleLoadProject}
@@ -274,19 +280,107 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div className={`h-4 w-px mx-1 ${isLight ? 'bg-slate-300' : 'bg-slate-800'}`} />
 
-        {/* Theme Toggle Button */}
-        <button
-          onClick={onToggleTheme}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-            isLight
-              ? 'bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-300'
-              : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
-          }`}
-          title={isLight ? 'Switch to Dark Theme' : 'Switch to Light Theme'}
-        >
-          {isLight ? <Moon className="w-3.5 h-3.5 text-slate-700" /> : <Sun className="w-3.5 h-3.5 text-amber-400" />}
-          <span>{isLight ? 'Dark' : 'Light'}</span>
-        </button>
+        {/* Canvas Settings Button & Popover */}
+        <div className="relative">
+          <button
+            onClick={() => {
+              setShowSettingsFlyout((prev) => !prev);
+              setShowSanityFlyout(false);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+              showSettingsFlyout
+                ? 'bg-blue-600 text-white border-blue-500 shadow-md'
+                : isLight
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+            }`}
+            title="Open Application & Rendering Settings"
+          >
+            <Settings className="w-3.5 h-3.5 text-blue-400" />
+            <span>Settings</span>
+          </button>
+
+          {/* Settings Popover */}
+          {showSettingsFlyout && (
+            <div className={`absolute right-0 mt-2 w-80 rounded-xl border p-4 shadow-2xl z-50 backdrop-blur-xl ${
+              isLight ? 'bg-white/95 border-slate-200 text-slate-800' : 'bg-slate-900/95 border-slate-800 text-slate-100'
+            }`}>
+              <div className="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 text-blue-500" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Application Settings
+                  </span>
+                </div>
+                <button
+                  onClick={() => setShowSettingsFlyout(false)}
+                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Render Setting 1: Flow Animation */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="text-xs font-semibold flex items-center gap-1.5 text-slate-900 dark:text-slate-100">
+                      <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>Link Flow Animation</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                      Animate directional paths on bidirectional links.
+                      <span className="block font-medium text-amber-600 dark:text-amber-400 mt-0.5">
+                        Off by default to maintain 0% Idle CPU.
+                      </span>
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onToggleAnimateFlow}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      animateFlow ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        animateFlow ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Render Setting 2: Light Mode Toggle Switch */}
+                <div className="border-t border-slate-200 dark:border-slate-800/80 pt-3 flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="text-xs font-semibold flex items-center gap-1.5 text-slate-900 dark:text-slate-100">
+                      {isLight ? <Sun className="w-3.5 h-3.5 text-amber-500" /> : <Moon className="w-3.5 h-3.5 text-blue-400" />}
+                      <span>Light Mode</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Toggle workspace between Light and Dark visual themes.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onToggleTheme}
+                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      isLight ? 'bg-amber-500' : 'bg-slate-300 dark:bg-slate-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        isLight ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

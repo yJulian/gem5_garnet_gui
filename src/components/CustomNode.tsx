@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { Handle, Position, NodeProps } from '@xyflow/react';
 import { Network, Cpu, Layers, Zap, Code, Database, Radio, Activity, AlertTriangle } from 'lucide-react';
-import { NoCNodeData, Gem5ComponentType } from '../types/noc';
+import { Gem5ComponentType, CanvasCustomNodeData } from '../types/noc';
 
 const getComponentIcon = (type?: Gem5ComponentType) => {
   switch (type) {
@@ -27,19 +27,8 @@ const getComponentIcon = (type?: Gem5ComponentType) => {
   }
 };
 
-export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
-  const nodeData = data as unknown as NoCNodeData & {
-    nodeId?: string;
-    onSelectNode?: (id: string) => void;
-    isDimmed?: boolean;
-    isValidTarget?: boolean;
-    isShaking?: boolean;
-    isBlocking?: boolean;
-    hasSanityError?: boolean;
-    hasSanityWarning?: boolean;
-    hasIslandWarning?: boolean;
-    sanityIssueTooltip?: string;
-  };
+const CustomNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
+  const nodeData = data as unknown as CanvasCustomNodeData;
   const isRouter = nodeData.type === 'router';
   const isTemplate = nodeData.type === 'template';
   const isDimmed = nodeData.isDimmed;
@@ -50,33 +39,25 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
   const hasSanityWarning = nodeData.hasSanityWarning;
   const hasIslandWarning = nodeData.hasIslandWarning;
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (nodeData.onSelectNode) {
-      nodeData.onSelectNode(id || nodeData.nodeId || '');
-    }
-  };
-
   return (
     <div
-      onClick={handleClick}
-      className={`px-4 py-3 rounded-xl border transition-all duration-300 min-w-[160px] shadow-lg relative cursor-pointer select-none ${
+      className={`px-4 py-3 rounded-xl border transition-colors transition-shadow duration-150 min-w-[160px] shadow-lg relative cursor-pointer select-none will-change-transform ${
         isShaking
           ? 'animate-shake ring-4 ring-rose-500 border-rose-500 shadow-2xl shadow-rose-500/60 z-30'
           : isBlocking
           ? 'ring-4 ring-amber-500 dark:ring-amber-400 border-amber-500 shadow-2xl shadow-amber-500/50 scale-105 animate-pulse z-30'
           : hasSanityError
           ? selected
-            ? 'ring-4 ring-rose-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 border-rose-500 shadow-xl shadow-rose-500/50 animate-pulse z-20'
-            : 'ring-2 ring-rose-500 border-rose-500 shadow-xl shadow-rose-500/40 animate-pulse z-10'
+            ? 'ring-4 ring-rose-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 border-rose-500 shadow-xl shadow-rose-500/50 z-20'
+            : 'ring-2 ring-rose-500 border-rose-500 shadow-xl shadow-rose-500/40 z-10'
           : hasSanityWarning
           ? selected
-            ? 'ring-4 ring-amber-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 border-amber-500 shadow-xl shadow-amber-500/40 animate-pulse z-20'
-            : 'ring-2 ring-amber-500 border-amber-500 shadow-xl shadow-amber-500/30 animate-pulse z-10'
+            ? 'ring-4 ring-amber-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 border-amber-500 shadow-xl shadow-amber-500/40 z-20'
+            : 'ring-2 ring-amber-500 border-amber-500 shadow-xl shadow-amber-500/30 z-10'
           : isDimmed
-          ? 'opacity-30 grayscale blur-[0.3px] pointer-events-none scale-95 border-slate-300 dark:border-slate-800'
+          ? 'opacity-30 grayscale pointer-events-none scale-95 border-slate-300 dark:border-slate-800'
           : isValidTarget
-          ? 'ring-2 ring-emerald-500 dark:ring-emerald-400 border-emerald-500 dark:border-emerald-400 shadow-xl shadow-emerald-500/30 scale-105 animate-pulse'
+          ? 'ring-2 ring-emerald-500 dark:ring-emerald-400 border-emerald-500 dark:border-emerald-400 shadow-xl shadow-emerald-500/30 scale-105'
           : selected
           ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 border-blue-500 dark:border-blue-400 shadow-blue-500/30'
           : 'border-slate-300 dark:border-slate-700/60 hover:border-slate-400 dark:hover:border-slate-500'
@@ -91,10 +72,10 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
       {/* Router Attached Endpoint Badge / Dot Indicator */}
       {isRouter && (nodeData.attachedEndpointCount ?? 0) > 0 && (
         <div
-          className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 text-[10px] font-mono font-semibold flex items-center gap-1 shadow-md backdrop-blur-md z-20"
+          className="absolute -top-2 -right-2 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/50 text-[10px] font-mono font-semibold flex items-center gap-1 shadow-sm z-20"
           title={`Attached Endpoints (${nodeData.attachedEndpointCount}): ${nodeData.attachedEndpointNames?.join(', ') || 'N/A'}`}
         >
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
           <span>{nodeData.attachedEndpointCount}</span>
         </div>
       )}
@@ -237,4 +218,43 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
       </div>
     </div>
   );
-});
+};
+
+function arePropsEqual(prevProps: NodeProps, nextProps: NodeProps): boolean {
+  if (prevProps.id !== nextProps.id || prevProps.selected !== nextProps.selected) {
+    return false;
+  }
+
+  const prevData = prevProps.data as unknown as CanvasCustomNodeData;
+  const nextData = nextProps.data as unknown as CanvasCustomNodeData;
+
+  if (!prevData || !nextData) return prevData === nextData;
+
+  return (
+    prevData.label === nextData.label &&
+    prevData.type === nextData.type &&
+    prevData.routerId === nextData.routerId &&
+    prevData.latency === nextData.latency &&
+    prevData.gem5Component === nextData.gem5Component &&
+    prevData.attachedEndpointCount === nextData.attachedEndpointCount &&
+    prevData.isDimmed === nextData.isDimmed &&
+    prevData.isValidTarget === nextData.isValidTarget &&
+    prevData.isShaking === nextData.isShaking &&
+    prevData.isBlocking === nextData.isBlocking &&
+    prevData.hasSanityError === nextData.hasSanityError &&
+    prevData.hasSanityWarning === nextData.hasSanityWarning &&
+    prevData.hasIslandWarning === nextData.hasIslandWarning &&
+    prevData.addrRangeStart === nextData.addrRangeStart &&
+    prevData.addrRangeSize === nextData.addrRangeSize &&
+    prevData.clock === nextData.clock &&
+    prevData.l1iSize === nextData.l1iSize &&
+    prevData.l1dSize === nextData.l1dSize &&
+    prevData.injectionRate === nextData.injectionRate &&
+    prevData.simCycles === nextData.simCycles &&
+    prevData.templateClassCode === nextData.templateClassCode &&
+    prevData.templateInstantiationCode === nextData.templateInstantiationCode
+  );
+}
+
+export const CustomNode = memo(CustomNodeComponent, arePropsEqual);
+

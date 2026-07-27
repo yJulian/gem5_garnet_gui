@@ -4,7 +4,7 @@ import { Canvas } from './components/Canvas';
 import { SettingsPanel } from './components/SettingsPanel';
 import { GeneratorModal } from './components/GeneratorModal';
 import { CodePreviewModal } from './components/CodePreviewModal';
-import { NoCProject, NodeType, Gem5ComponentType, NoCLinkData } from './types/noc';
+import { NoCProject, NodeType, Gem5ComponentType, NoCLinkData, NoCNodeData } from './types/noc';
 import { generateMeshTopology, generateTorusTopology, generateRingTopology } from './utils/topologyGenerators';
 import { computeForceLayout } from './utils/forceLayout';
 import { recalculateAutoHandles } from './utils/handleUtils';
@@ -71,8 +71,9 @@ export function App() {
 
   // Handle Chrome / MS Edge PWA LaunchQueue File Handler (.gnoc file association)
   useEffect(() => {
-    if ('launchQueue' in window && 'files' in (window as any).LaunchParams.prototype) {
-      (window as any).launchQueue.setConsumer(async (launchParams: any) => {
+    const win = window as unknown as { launchQueue?: { setConsumer: (cb: (params: { files?: FileSystemFileHandle[] }) => void) => void }; LaunchParams?: { prototype: { files?: unknown } } };
+    if ('launchQueue' in window && win.LaunchParams && 'files' in win.LaunchParams.prototype) {
+      win.launchQueue?.setConsumer(async (launchParams) => {
         if (!launchParams.files || !launchParams.files.length) return;
 
         for (const fileHandle of launchParams.files) {
@@ -142,7 +143,7 @@ export function App() {
     const posX = 200 + Math.random() * 300;
     const posY = 150 + Math.random() * 250;
 
-    const nodeData: any = {
+    const nodeData: NoCNodeData = {
       label: type === 'router' ? `Router ${nextIndex}` : type === 'template' ? `Custom Template ${nextIndex}` : `Endpoint ${nextIndex}`,
       type,
     };
@@ -353,6 +354,19 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedNodeId, selectedEdgeId, handleDeleteNode, handleDeleteEdge]);
 
+  // Flow Animation Preference ('true' | 'false')
+  const [animateFlow, setAnimateFlow] = useState<boolean>(() => {
+    return localStorage.getItem('garnet_animate_flow') === 'true';
+  });
+
+  const handleToggleAnimateFlow = () => {
+    setAnimateFlow((prev) => {
+      const next = !prev;
+      localStorage.setItem('garnet_animate_flow', String(next));
+      return next;
+    });
+  };
+
   const isLight = theme === 'light';
 
   return (
@@ -367,6 +381,8 @@ export function App() {
         onSelectNode={setSelectedNodeId}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        animateFlow={animateFlow}
+        onToggleAnimateFlow={handleToggleAnimateFlow}
       />
 
       {/* Main Workspace Layout */}
@@ -390,6 +406,7 @@ export function App() {
             }}
             onRunForceLayout={handleRunForceLayout}
             theme={theme}
+            animateFlow={animateFlow}
           />
         </div>
 

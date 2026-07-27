@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { EdgeProps, getBezierPath, EdgeLabelRenderer, BaseEdge } from '@xyflow/react';
+import { CanvasCustomEdgeData } from '../types/noc';
 
-export const CustomEdge: React.FC<EdgeProps> = ({
+const CustomEdgeComponent: React.FC<EdgeProps> = ({
   id,
   sourceX,
   sourceY,
@@ -24,24 +25,12 @@ export const CustomEdge: React.FC<EdgeProps> = ({
     targetPosition,
   });
 
-  const edgeData = data as {
-    onSelectEdge?: (id: string) => void;
-    onSelectNode?: (id: string | null) => void;
-    theme?: 'dark' | 'light';
-  };
-
+  const edgeData = data as unknown as CanvasCustomEdgeData | undefined;
   const isLight = edgeData?.theme === 'light';
 
   const handleEdgeClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.nativeEvent) {
-      e.nativeEvent.stopImmediatePropagation();
-      e.nativeEvent.stopPropagation();
-    }
-    if (edgeData?.onSelectEdge) {
-      edgeData.onSelectEdge(id);
-    }
   };
 
   return (
@@ -66,11 +55,6 @@ export const CustomEdge: React.FC<EdgeProps> = ({
           cursor: 'pointer',
           strokeWidth: selected ? 4.5 : 2.5,
           stroke: selected ? '#3B82F6' : style.stroke || (isLight ? '#2563EB' : '#3B82F6'),
-          filter: selected
-            ? 'drop-shadow(0 0 10px rgba(59, 130, 246, 0.95))'
-            : isLight
-            ? 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))'
-            : undefined,
         }}
       />
 
@@ -104,3 +88,36 @@ export const CustomEdge: React.FC<EdgeProps> = ({
     </>
   );
 };
+
+function areEdgePropsEqual(prevProps: EdgeProps, nextProps: EdgeProps): boolean {
+  if (
+    prevProps.id !== nextProps.id ||
+    prevProps.selected !== nextProps.selected ||
+    prevProps.animated !== nextProps.animated ||
+    prevProps.sourceX !== nextProps.sourceX ||
+    prevProps.sourceY !== nextProps.sourceY ||
+    prevProps.targetX !== nextProps.targetX ||
+    prevProps.targetY !== nextProps.targetY ||
+    prevProps.sourcePosition !== nextProps.sourcePosition ||
+    prevProps.targetPosition !== nextProps.targetPosition ||
+    prevProps.label !== nextProps.label ||
+    prevProps.markerEnd !== nextProps.markerEnd
+  ) {
+    return false;
+  }
+
+  const prevData = prevProps.data as unknown as CanvasCustomEdgeData | undefined;
+  const nextData = nextProps.data as unknown as CanvasCustomEdgeData | undefined;
+
+  if (!prevData || !nextData) return prevData === nextData;
+
+  return (
+    prevData.theme === nextData.theme &&
+    prevData.bandwidth === nextData.bandwidth &&
+    prevData.latency === nextData.latency &&
+    prevData.direction === nextData.direction
+  );
+}
+
+export const CustomEdge = memo(CustomEdgeComponent, areEdgePropsEqual);
+

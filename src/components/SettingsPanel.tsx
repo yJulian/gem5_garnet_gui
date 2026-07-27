@@ -12,8 +12,8 @@ interface SettingsPanelProps {
   onSelectNode: (id: string | null) => void;
   onSelectEdge: (id: string | null) => void;
   onAddNode: (type: 'router' | 'endpoint' | 'template') => void;
-  onDeleteNode?: (id: string) => void;
-  onDeleteEdge?: (id: string) => void;
+  onDeleteNode: (id: string) => void;
+  onDeleteEdge: (id: string) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -21,8 +21,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onProjectChange,
   selectedNodeId,
   selectedEdgeId,
-  onSelectNode,
-  onSelectEdge,
   onAddNode,
   onDeleteNode,
   onDeleteEdge,
@@ -34,7 +32,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const selectedNodeIssues = selectedNodeId ? sanityIssues.filter((i) => i.nodeId === selectedNodeId) : [];
 
   // Update selected Node fields
-  const handleUpdateNode = (field: keyof NoCNodeData, value: any) => {
+  const handleUpdateNode = (field: keyof NoCNodeData, value: unknown) => {
     if (!selectedNodeId) return;
     const updatedNodes = project.nodes.map((node) => {
       if (node.id === selectedNodeId) {
@@ -53,19 +51,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   // Delete Node
   const handleDeleteNode = () => {
-    if (!selectedNodeId) return;
-    if (onDeleteNode) {
+    if (selectedNodeId) {
       onDeleteNode(selectedNodeId);
-    } else {
-      const updatedNodes = project.nodes.filter((n) => n.id !== selectedNodeId);
-      const updatedLinks = project.links.filter((l) => l.source !== selectedNodeId && l.target !== selectedNodeId);
-      onProjectChange({ ...project, nodes: updatedNodes, links: updatedLinks });
-      onSelectNode(null);
     }
   };
 
   // Update selected Edge fields
-  const handleUpdateEdge = (field: keyof NoCLinkData, value: any) => {
+  const handleUpdateEdge = (field: keyof NoCLinkData, value: unknown) => {
     if (!selectedEdgeId) return;
     const updatedLinks = project.links.map((link) => {
       if (link.id === selectedEdgeId) {
@@ -78,13 +70,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   // Delete Edge
   const handleDeleteEdge = () => {
-    if (!selectedEdgeId) return;
-    if (onDeleteEdge) {
+    if (selectedEdgeId) {
       onDeleteEdge(selectedEdgeId);
-    } else {
-      const updatedLinks = project.links.filter((l) => l.id !== selectedEdgeId);
-      onProjectChange({ ...project, links: updatedLinks });
-      onSelectEdge(null);
     }
   };
 
@@ -103,7 +90,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   };
 
   // Update Global Template
-  const handleUpdateGlobalTemplate = (id: string, field: keyof GlobalTemplateDef, value: any) => {
+  const handleUpdateGlobalTemplate = (id: string, field: keyof GlobalTemplateDef, value: unknown) => {
     const updatedTemplates = project.globalTemplates.map((t) => (t.id === id ? { ...t, [field]: value } : t));
     onProjectChange({ ...project, globalTemplates: updatedTemplates });
   };
@@ -580,7 +567,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block font-medium">Link Directionality</label>
               <select
                 value={selectedEdge.direction}
-                onChange={(e) => handleUpdateEdge('direction', e.target.value as any)}
+                onChange={(e) => handleUpdateEdge('direction', e.target.value as 'bi' | 'uni')}
                 className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               >
                 <option value="bi">Bidirectional (Full-Duplex Dual Links)</option>
@@ -731,7 +718,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     onChange={(e) =>
                       onProjectChange({
                         ...project,
-                        settings: { ...project.settings, routingAlgorithm: e.target.value as any },
+                        settings: { ...project.settings, routingAlgorithm: e.target.value as 'table' | 'xy' | 'custom' },
                       })
                     }
                     className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2.5 py-1 text-sm text-slate-900 dark:text-slate-100"
