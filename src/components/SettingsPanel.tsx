@@ -286,24 +286,60 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
             {/* Bandwidth */}
             <div>
-              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block font-medium">Bandwidth (bits / cycle)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-slate-600 dark:text-slate-400 font-medium">Bandwidth (bits / cycle)</label>
+                <span className="text-[10px] font-mono font-semibold text-blue-600 dark:text-blue-400">{selectedEdge.bandwidth} b/c</span>
+              </div>
               <input
                 type="number"
                 value={selectedEdge.bandwidth}
                 onChange={(e) => handleUpdateEdge('bandwidth', parseInt(e.target.value, 10) || 128)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 mb-1.5"
               />
+              <div className="grid grid-cols-4 gap-1.5">
+                {[64, 128, 256, 512].map((bw) => (
+                  <button
+                    key={bw}
+                    onClick={() => handleUpdateEdge('bandwidth', bw)}
+                    className={`py-1 rounded text-[10px] font-mono font-semibold border transition-all ${
+                      selectedEdge.bandwidth === bw
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-800 hover:border-blue-400'
+                    }`}
+                  >
+                    {bw} b/c
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Latency */}
             <div>
-              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block font-medium">Link Latency (Cycles)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs text-slate-600 dark:text-slate-400 font-medium">Link Latency (Cycles)</label>
+                <span className="text-[10px] font-mono font-semibold text-blue-600 dark:text-blue-400">{selectedEdge.latency} cyc</span>
+              </div>
               <input
                 type="number"
                 value={selectedEdge.latency}
                 onChange={(e) => handleUpdateEdge('latency', parseInt(e.target.value, 10) || 1)}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500 mb-1.5"
               />
+              <div className="grid grid-cols-3 gap-1.5">
+                {[1, 2, 4].map((lat) => (
+                  <button
+                    key={lat}
+                    onClick={() => handleUpdateEdge('latency', lat)}
+                    className={`py-1 rounded text-[10px] font-mono font-semibold border transition-all ${
+                      selectedEdge.latency === lat
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-800 hover:border-blue-400'
+                    }`}
+                  >
+                    {lat} cyc
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Routing Weight */}

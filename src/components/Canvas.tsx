@@ -13,6 +13,8 @@ import {
   EdgeChange,
   applyNodeChanges,
   applyEdgeChanges,
+  OnConnectStart,
+  OnConnectEnd,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { CustomNode } from './CustomNode';
@@ -46,6 +48,19 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [gravityMode, setGravityMode] = useState<boolean>(true);
   const [hideEndpoints, setHideEndpoints] = useState<boolean>(false);
 
+  // Connection handle drag state for dynamic invalid node dimming & valid target glowing
+  const [connectingSourceNodeId, setConnectingSourceNodeId] = useState<string | null>(null);
+
+  const handleConnectStart: OnConnectStart = useCallback((_, { nodeId }) => {
+    if (nodeId) {
+      setConnectingSourceNodeId(nodeId);
+    }
+  }, []);
+
+  const handleConnectEnd: OnConnectEnd = useCallback(() => {
+    setConnectingSourceNodeId(null);
+  }, []);
+
   // Calculate attached endpoints and endpoint names for each Router node
   const routerAttachmentMap = useMemo(() => {
     const map = new Map<string, { count: number; names: string[] }>();
@@ -70,10 +85,20 @@ export const Canvas: React.FC<CanvasProps> = ({
     return map;
   }, [project.nodes, project.links]);
 
-  // Construct initial nodes array from project props
+  // Construct initial nodes array with dynamic connection dimming & target leuchten
   const initialNodes: Node[] = useMemo(() => {
+    const sourceNode = project.nodes.find((pn) => pn.id === connectingSourceNodeId);
+    const isDraggingConnection = !!connectingSourceNodeId;
+    const isSourceRouter = sourceNode?.data.type === 'router';
+
     return project.nodes.map((n) => {
       const attachment = routerAttachmentMap.get(n.id);
+
+      const isSelf = n.id === connectingSourceNodeId;
+      const isTargetRouter = n.data.type === 'router';
+      const isValidTarget = isDraggingConnection && !isSelf && (isSourceRouter || isTargetRouter);
+      const isDimmed = isDraggingConnection && !isValidTarget;
+
       return {
         id: n.id,
         type: 'custom',
@@ -84,11 +109,13 @@ export const Canvas: React.FC<CanvasProps> = ({
           attachedEndpointNames: attachment?.names || [],
           nodeId: n.id,
           onSelectNode,
+          isDimmed,
+          isValidTarget,
         } as unknown as Record<string, unknown>,
         selected: n.id === selectedNodeId,
       };
     });
-  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap]);
+  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId]);
 
   // Construct initial edges array from project props
   const initialEdges: Edge[] = useMemo(() => {
@@ -108,18 +135,21 @@ export const Canvas: React.FC<CanvasProps> = ({
         label: `${l.bandwidth}b/c, ${l.latency}cyc`,
         animated: l.direction === 'bi',
         selected: isSelected,
-        interactionWidth: 25,
+        interactionWidth: 30,
         style: isSelected
-          ? { stroke: '#3B82F6', strokeWidth: 4.5, filter: 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.8))' }
+          ? { stroke: '#3B82F6', strokeWidth: 5, filter: 'drop-shadow(0 0 10px rgba(59, 130, 246, 0.9))', cursor: 'pointer' }
           : {
               stroke: isLight ? (l.direction === 'bi' ? '#2563EB' : '#64748B') : (l.direction === 'bi' ? '#3B82F6' : '#64748B'),
               strokeWidth: 2.5,
+              cursor: 'pointer',
             },
         labelStyle: {
           fill: isLight ? '#334155' : '#94A3B8',
           fontSize: 10,
           fontWeight: 600,
           fontFamily: 'monospace',
+          cursor: 'pointer',
+          pointerEvents: 'all',
         },
         labelBgStyle: {
           fill: isLight ? '#FFFFFF' : '#0F172A',
@@ -127,7 +157,9 @@ export const Canvas: React.FC<CanvasProps> = ({
           rx: 6,
           ry: 6,
           stroke: isSelected ? '#3B82F6' : isLight ? '#CBD5E1' : '#334155',
-          strokeWidth: isSelected ? 1.5 : 1,
+          strokeWidth: isSelected ? 2 : 1,
+          cursor: 'pointer',
+          pointerEvents: 'all',
         },
       };
     });
@@ -311,6 +343,8 @@ export const Canvas: React.FC<CanvasProps> = ({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={handleConnect}
+        onConnectStart={handleConnectStart}
+        onConnectEnd={handleConnectEnd}
         isValidConnection={isValidConnection}
         onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
@@ -331,6 +365,8 @@ export const Canvas: React.FC<CanvasProps> = ({
         elementsSelectable={true}
         nodesConnectable={true}
         nodesDraggable={true}
+        edgesFocusable={true}
+        edgesReconnectable={false}
         snapToGrid={false}
         fitView
       >

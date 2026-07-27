@@ -26,9 +26,16 @@ const getComponentIcon = (type?: Gem5ComponentType) => {
 };
 
 export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
-  const nodeData = data as unknown as NoCNodeData & { nodeId?: string; onSelectNode?: (id: string) => void };
+  const nodeData = data as unknown as NoCNodeData & {
+    nodeId?: string;
+    onSelectNode?: (id: string) => void;
+    isDimmed?: boolean;
+    isValidTarget?: boolean;
+  };
   const isRouter = nodeData.type === 'router';
   const isTemplate = nodeData.type === 'template';
+  const isDimmed = nodeData.isDimmed;
+  const isValidTarget = nodeData.isValidTarget;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -40,8 +47,12 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
   return (
     <div
       onClick={handleClick}
-      className={`px-4 py-3 rounded-xl border transition-all duration-200 min-w-[160px] shadow-lg relative cursor-pointer select-none ${
-        selected
+      className={`px-4 py-3 rounded-xl border transition-all duration-300 min-w-[160px] shadow-lg relative cursor-pointer select-none ${
+        isDimmed
+          ? 'opacity-30 grayscale blur-[0.3px] pointer-events-none scale-95 border-slate-300 dark:border-slate-800'
+          : isValidTarget
+          ? 'ring-2 ring-emerald-500 dark:ring-emerald-400 border-emerald-500 dark:border-emerald-400 shadow-xl shadow-emerald-500/30 scale-105 animate-pulse'
+          : selected
           ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-100 dark:ring-offset-slate-900 border-blue-500 dark:border-blue-400 shadow-blue-500/30'
           : 'border-slate-300 dark:border-slate-700/60 hover:border-slate-400 dark:hover:border-slate-500'
       } ${
