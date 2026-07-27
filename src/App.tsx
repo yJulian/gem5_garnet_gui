@@ -36,10 +36,35 @@ const createInitialProject = (): NoCProject => {
   };
 };
 
+// Load saved project from localStorage or create default 4x4 Mesh
+const loadInitialProject = (): NoCProject => {
+  try {
+    const saved = localStorage.getItem('garnet_saved_project');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.links)) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load project from localStorage:', e);
+  }
+  return createInitialProject();
+};
+
 export function App() {
-  const [project, setProject] = useState<NoCProject>(createInitialProject);
+  const [project, setProject] = useState<NoCProject>(loadInitialProject);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  // Auto-save project state to localStorage on every change
+  useEffect(() => {
+    try {
+      localStorage.setItem('garnet_saved_project', JSON.stringify(project));
+    } catch (e) {
+      console.error('Failed to save project to localStorage:', e);
+    }
+  }, [project]);
 
   // Theme State ('dark' | 'light')
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
