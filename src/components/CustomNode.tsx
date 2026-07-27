@@ -37,6 +37,7 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
     isBlocking?: boolean;
     hasSanityError?: boolean;
     hasSanityWarning?: boolean;
+    hasIslandWarning?: boolean;
     sanityIssueTooltip?: string;
   };
   const isRouter = nodeData.type === 'router';
@@ -47,6 +48,7 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
   const isBlocking = nodeData.isBlocking;
   const hasSanityError = nodeData.hasSanityError;
   const hasSanityWarning = nodeData.hasSanityWarning;
+  const hasIslandWarning = nodeData.hasIslandWarning;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -103,12 +105,14 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
           className={`absolute -top-2 -left-2 px-1.5 py-0.5 rounded-full text-[10px] font-mono font-semibold flex items-center gap-1 shadow-lg z-20 animate-bounce ${
             hasSanityError
               ? 'bg-rose-500 text-white border border-rose-300'
+              : hasIslandWarning
+              ? 'bg-purple-600 text-white border border-purple-300'
               : 'bg-amber-500 text-white border border-amber-300'
           }`}
           title={nodeData.sanityIssueTooltip || 'Sanity check alert'}
         >
           <AlertTriangle className="w-3 h-3 stroke-[2.5]" />
-          <span>{hasSanityError ? 'ERR' : 'WARN'}</span>
+          <span>{hasSanityError ? 'ERR' : hasIslandWarning ? 'ISLAND' : 'WARN'}</span>
         </div>
       )}
 

@@ -16,6 +16,7 @@ export type SanityIssueCode =
   | 'INVALID_MEMORY_SIZE'
   | 'DUPLICATE_ROUTER_ID'
   | 'UNCONNECTED_ENDPOINT'
+  | 'DISCONNECTED_ISLAND'
   | 'INVALID_LATENCY'
   | 'INVALID_BANDWIDTH'
   | 'INVALID_BUFFER';
@@ -198,6 +199,90 @@ export function validateProjectSanity(project: NoCProject): SanityIssue[] {
       });
     }
   });
+
+  // 2b. Router Backbone Island Detection (BFS Inter-Router Connectivity)
+  if (routerNodes.length > 1) {
+    const routerAdjacency = new Map<string, string[]>();
+    routerNodes.forEach((r) => routerAdjacency.set(r.id, []));
+
+    // Consider strictly inter-router links (IntLink)
+    project.links.forEach((l) => {
+      const srcIsRouter = routerNodes.some((r) => r.id === l.source);
+      const dstIsRouter = routerNodes.some((r) => r.id === l.target);
+      if (srcIsRouter && dstIsRouter) {
+        routerAdjacency.get(l.source)!.push(l.target);
+        routerAdjacency.get(l.target)!.push(l.source);
+      }
+    });
+
+    const visitedRouters = new Set<string>();
+    const routerComponents: string[][] = [];
+
+    routerNodes.forEach((rNode) => {
+      if (!visitedRouters.has(rNode.id)) {
+        const comp: string[] = [];
+        const queue = [rNode.id];
+        visitedRouters.add(rNode.id);
+
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          comp.push(curr);
+          const nbrs = routerAdjacency.get(curr) || [];
+          nbrs.forEach((nbr) => {
+            if (!visitedRouters.has(nbr)) {
+              visitedRouters.add(nbr);
+              queue.push(nbr);
+            }
+          });
+        }
+
+        routerComponents.push(comp);
+      }
+    });
+
+    if (routerComponents.length > 1) {
+      // Sort components by router count descending (component 0 is main router backbone)
+      routerComponents.sort((a, b) => b.length - a.length);
+
+      for (let cIdx = 1; cIdx < routerComponents.length; cIdx++) {
+        const islandRouterIds = routerComponents[cIdx];
+
+        islandRouterIds.forEach((rId) => {
+          const rNode = project.nodes.find((n) => n.id === rId);
+          issues.push({
+            id: `warn_island_router_${rId}`,
+            type: 'warning',
+            code: 'DISCONNECTED_ISLAND',
+            nodeId: rId,
+            relatedNodeIds: islandRouterIds.filter((id) => id !== rId),
+            title: 'Disconnected Router Island',
+            message: `Router "${rNode?.data.label || rId}" belongs to an isolated Router backbone island (${islandRouterIds.length} router(s)) disconnected from main NoC.`,
+          });
+
+          // Propagate island warning to attached endpoints
+          project.links.forEach((l) => {
+            let attachedEpId: string | null = null;
+            if (l.source === rId) attachedEpId = l.target;
+            else if (l.target === rId) attachedEpId = l.source;
+
+            if (attachedEpId) {
+              const epNode = project.nodes.find((n) => n.id === attachedEpId && n.data.type !== 'router');
+              if (epNode) {
+                issues.push({
+                  id: `warn_island_ep_${attachedEpId}`,
+                  type: 'warning',
+                  code: 'DISCONNECTED_ISLAND',
+                  nodeId: attachedEpId,
+                  title: 'Endpoint on Disconnected Island',
+                  message: `Endpoint "${epNode.data.label}" is attached to isolated Router "${rNode?.data.label || rId}" which is disconnected from main NoC.`,
+                });
+              }
+            }
+          });
+        });
+      }
+    }
+  }
 
   // 3. Memory Region Validation & Overlap Detection
   const nodesWithMemory: Array<{

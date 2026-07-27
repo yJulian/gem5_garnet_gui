@@ -114,6 +114,7 @@ export const Canvas: React.FC<CanvasProps> = ({
       const nodeIssues = sanityIssues.filter((i) => i.nodeId === n.id);
       const hasSanityError = nodeIssues.some((i) => i.type === 'error');
       const hasSanityWarning = nodeIssues.some((i) => i.type === 'warning');
+      const hasIslandWarning = nodeIssues.some((i) => i.code === 'DISCONNECTED_ISLAND');
       const sanityIssueTooltip = nodeIssues.map((i) => `${i.type.toUpperCase()}: ${i.title} - ${i.message}`).join('\n');
 
       return {
@@ -132,6 +133,7 @@ export const Canvas: React.FC<CanvasProps> = ({
           isBlocking,
           hasSanityError,
           hasSanityWarning,
+          hasIslandWarning,
           sanityIssueTooltip,
         } as unknown as Record<string, unknown>,
         selected: n.id === selectedNodeId,
