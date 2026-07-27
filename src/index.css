@@ -76,6 +76,34 @@ html.light .glass-card {
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
+/* ReactFlow Controls 4x2 Grid Matrix layout override */
+.react-flow__controls-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, 28px) !important;
+  gap: 2px !important;
+  padding: 4px !important;
+  border-radius: 12px !important;
+  background: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4) !important;
+}
+
+html.light .react-flow__controls-grid {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+.react-flow__controls-grid .react-flow__controls-button {
+  width: 28px !important;
+  height: 28px !important;
+  border: none !important;
+  border-radius: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
 html.light .react-flow__controls {
   border: 1px solid rgba(0, 0, 0, 0.1) !important;
 }

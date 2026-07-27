@@ -3,12 +3,12 @@ import {
   ReactFlow,
   Background,
   Controls,
+  ControlButton,
   MiniMap,
   Node,
   Edge,
   Connection,
   BackgroundVariant,
-  Panel,
   NodeChange,
   EdgeChange,
   applyNodeChanges,
@@ -20,7 +20,7 @@ import '@xyflow/react/dist/style.css';
 import { CustomNode } from './CustomNode';
 import { CustomEdge } from './CustomEdge';
 import { NoCProject, NoCLinkData, NoCNodeData } from '../types/noc';
-import { Zap, Magnet, Eye, EyeOff } from 'lucide-react';
+import { Zap, Magnet, Eye, EyeOff, Unlock } from 'lucide-react';
 import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
 import { validateProjectSanity } from '../utils/validationUtils';
 import { InteractiveForceEngine } from '../utils/interactiveForceEngine';
@@ -275,7 +275,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   const handleNodeDragStop = useCallback(
     (_: unknown, node: Node) => {
       if (gravityMode && forceEngineRef.current) {
-        forceEngineRef.current.endDrag(node.id, node.position.x, node.position.y);
+        forceEngineRef.current.endDrag(node.id);
       }
 
       const updatedProjectNodes = project.nodes.map((pn) => {
@@ -444,7 +444,55 @@ export const Canvas: React.FC<CanvasProps> = ({
           size={1.5}
           color={isLight ? '#CBD5E1' : '#1E293B'}
         />
-        <Controls />
+        <Controls position="bottom-left" className="react-flow__controls-grid">
+          <ControlButton
+            onClick={onRunForceLayout}
+            title="Force Auto-Layout"
+            aria-label="Force Auto-Layout"
+          >
+            <Zap className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20" />
+          </ControlButton>
+
+          <ControlButton
+            onClick={() => setGravityMode((prev) => !prev)}
+            title={`Push Physics: ${gravityMode ? 'ON' : 'OFF'}`}
+            aria-label="Toggle Push Physics"
+            className={gravityMode ? '!bg-amber-500/20' : ''}
+          >
+            <Magnet className={`w-3.5 h-3.5 ${gravityMode ? 'text-amber-500 fill-amber-500/20' : 'text-slate-400'}`} />
+          </ControlButton>
+
+          <ControlButton
+            onClick={() => {
+              if (forceEngineRef.current) {
+                forceEngineRef.current.clearAllAnchors();
+              }
+              const updatedProjectNodes = project.nodes.map((pn) => ({
+                ...pn,
+                data: { ...pn.data, anchorX: undefined, anchorY: undefined },
+              }));
+              onProjectChange({ ...project, nodes: updatedProjectNodes });
+            }}
+            title="Release All Anchors"
+            aria-label="Release All Anchors"
+          >
+            <Unlock className="w-3.5 h-3.5 text-rose-500" />
+          </ControlButton>
+
+          <ControlButton
+            onClick={() => setHideEndpoints((prev) => !prev)}
+            title={`Router Only View: ${hideEndpoints ? 'ON' : 'OFF'}`}
+            aria-label="Toggle Router Only View"
+            className={hideEndpoints ? '!bg-purple-500/20' : ''}
+          >
+            {hideEndpoints ? (
+              <EyeOff className="w-3.5 h-3.5 text-purple-500" />
+            ) : (
+              <Eye className="w-3.5 h-3.5 text-slate-400" />
+            )}
+          </ControlButton>
+        </Controls>
+
         <MiniMap
           nodeColor={(node) => {
             const data = node.data as unknown as NoCNodeData;
@@ -454,63 +502,6 @@ export const Canvas: React.FC<CanvasProps> = ({
           }}
           maskColor={isLight ? 'rgba(241, 245, 249, 0.7)' : 'rgba(15, 23, 42, 0.7)'}
         />
-
-        {/* Force & Gravity Control Floating Panel */}
-        <Panel position="top-left" className="m-4">
-          <div className={`rounded-xl p-2.5 flex items-center gap-2 shadow-2xl border ${
-            isLight
-              ? 'bg-white/80 backdrop-blur-md border-slate-200 text-slate-800'
-              : 'glass-panel border-slate-800 text-slate-100'
-          }`}>
-            <button
-              onClick={onRunForceLayout}
-              className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-600 dark:text-blue-300 font-medium text-xs flex items-center gap-1.5 border border-blue-500/30 transition-all"
-              title="Apply D3 Force-Directed Layout algorithm to arrange graph nodes"
-            >
-              <Zap className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20" />
-              Force Auto-Layout
-            </button>
-
-            <button
-              onClick={() => setGravityMode((prev) => !prev)}
-              className={`px-3 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-all ${
-                gravityMode
-                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
-                  : isLight
-                  ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
-                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
-              }`}
-              title="Toggle continuous physical collision pushing during node dragging"
-            >
-              <Magnet className={`w-3.5 h-3.5 ${gravityMode ? 'text-amber-500 fill-amber-500/20' : 'text-slate-400'}`} />
-              Push Physics: {gravityMode ? 'ON' : 'OFF'}
-            </button>
-
-            <button
-              onClick={() => setHideEndpoints((prev) => !prev)}
-              className={`px-3 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-all ${
-                hideEndpoints
-                  ? 'bg-purple-600/20 text-purple-600 dark:text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
-                  : isLight
-                  ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
-                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
-              }`}
-              title="Hide all Endpoints and Templates to inspect only the pure Router network topology layout"
-            >
-              {hideEndpoints ? (
-                <EyeOff className="w-3.5 h-3.5 text-purple-500" />
-              ) : (
-                <Eye className="w-3.5 h-3.5 text-slate-400" />
-              )}
-              Router Only: {hideEndpoints ? 'ON' : 'OFF'}
-            </button>
-
-            <div className={`h-4 w-px ${isLight ? 'bg-slate-300' : 'bg-slate-800'}`} />
-            <span className={`text-[11px] font-mono px-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-              Nodes: {project.nodes.length} | Links: {project.links.length}
-            </span>
-          </div>
-        </Panel>
       </ReactFlow>
     </div>
   );

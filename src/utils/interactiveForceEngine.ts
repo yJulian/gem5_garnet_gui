@@ -7,6 +7,8 @@ export interface PhysicsNode {
   vx: number;
   vy: number;
   isDragging: boolean;
+  targetX: number | null;
+  targetY: number | null;
   anchorX: number | null;
   anchorY: number | null;
 }
@@ -15,6 +17,7 @@ export interface PhysicsConfig {
   kRepulsion: number;     // Coulomb repulsion constant (default 120000)
   kAttraction: number;    // Hooke spring constant along links (default 0.015)
   kAnchor: number;        // Soft target anchor spring constant (default 0.12)
+  kMouse: number;         // Dynamic mouse drag spring constant (default 0.35)
   restLength: number;     // Ideal edge rest length in px (default 180)
   kCenter: number;        // Weak centering force constant (default 0.0003)
   damping: number;        // Friction / Velocity damping (default 0.78)
@@ -32,6 +35,7 @@ export class InteractiveForceEngine {
     kRepulsion: 120000,
     kAttraction: 0.015,
     kAnchor: 0.12,
+    kMouse: 0.35,
     restLength: 180,
     kCenter: 0.0003,
     damping: 0.78,
@@ -62,11 +66,9 @@ export class InteractiveForceEngine {
       const existing = this.nodes.get(n.id);
 
       if (existing) {
-        if (existing.isDragging) {
+        if (!existing.isDragging && (existing.anchorX === null || existing.anchorY === null)) {
           existing.x = n.position.x;
           existing.y = n.position.y;
-          existing.vx = 0;
-          existing.vy = 0;
         }
       } else {
         this.nodes.set(n.id, {
@@ -76,6 +78,8 @@ export class InteractiveForceEngine {
           vx: 0,
           vy: 0,
           isDragging: false,
+          targetX: null,
+          targetY: null,
           anchorX: n.data?.anchorX ?? null,
           anchorY: n.data?.anchorY ?? null,
         });
@@ -100,8 +104,6 @@ export class InteractiveForceEngine {
     const node = this.nodes.get(id);
     if (node) {
       node.isDragging = true;
-      node.vx = 0;
-      node.vy = 0;
       this.wake();
     }
   }
@@ -109,24 +111,21 @@ export class InteractiveForceEngine {
   public updateDragPos(id: string, x: number, y: number) {
     const node = this.nodes.get(id);
     if (node) {
-      node.x = x;
-      node.y = y;
-      node.vx = 0;
-      node.vy = 0;
+      node.isDragging = true;
+      node.targetX = x;
+      node.targetY = y;
       this.wake();
     }
   }
 
-  public endDrag(id: string, x: number, y: number) {
+  public endDrag(id: string) {
     const node = this.nodes.get(id);
     if (node) {
       node.isDragging = false;
-      node.x = x;
-      node.y = y;
-      node.anchorX = x;
-      node.anchorY = y;
-      node.vx = 0;
-      node.vy = 0;
+      node.targetX = null;
+      node.targetY = null;
+      node.anchorX = node.x;
+      node.anchorY = node.y;
       this.wake();
     }
   }
@@ -138,6 +137,16 @@ export class InteractiveForceEngine {
       node.anchorY = null;
       this.wake();
     }
+  }
+
+  public clearAllAnchors() {
+    this.nodes.forEach((node) => {
+      node.anchorX = null;
+      node.anchorY = null;
+      node.targetX = null;
+      node.targetY = null;
+    });
+    this.wake();
   }
 
   public wake() {
@@ -168,7 +177,18 @@ export class InteractiveForceEngine {
       forcesY.set(node.id, 0);
     });
 
-    // 1. Repulsion Force (Coulomb repulsion)
+    // 1. Mouse Drag Spring Force (Pulls actively dragged nodes towards cursor)
+    nodeList.forEach((node) => {
+      if (node.isDragging && node.targetX !== null && node.targetY !== null) {
+        const dx = node.targetX - node.x;
+        const dy = node.targetY - node.y;
+
+        forcesX.set(node.id, forcesX.get(node.id)! + dx * this.config.kMouse);
+        forcesY.set(node.id, forcesY.get(node.id)! + dy * this.config.kMouse);
+      }
+    });
+
+    // 2. Repulsion Force (Coulomb repulsion between all node pairs)
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
         const nodeA = nodeList[i];
@@ -192,7 +212,7 @@ export class InteractiveForceEngine {
       }
     }
 
-    // 2. Link Attraction Force (Hooke's spring along connections)
+    // 3. Link Attraction Force (Hooke's spring along connections)
     this.links.forEach((link) => {
       const nodeA = this.nodes.get(link.source);
       const nodeB = this.nodes.get(link.target);
@@ -216,9 +236,9 @@ export class InteractiveForceEngine {
       }
     });
 
-    // 3. Anchor Spring Force (Soft target anchor)
+    // 4. Anchor Spring Force (Soft target anchor for released nodes)
     nodeList.forEach((node) => {
-      if (node.anchorX !== null && node.anchorY !== null) {
+      if (!node.isDragging && node.anchorX !== null && node.anchorY !== null) {
         const dx = node.anchorX - node.x;
         const dy = node.anchorY - node.y;
 
@@ -227,7 +247,7 @@ export class InteractiveForceEngine {
       }
     });
 
-    // 4. Centering Force (Weak pull towards canvas center)
+    // 5. Centering Force (Weak pull towards canvas center)
     nodeList.forEach((node) => {
       const dx = this.canvasCenter.x - node.x;
       const dy = this.canvasCenter.y - node.y;
@@ -236,25 +256,20 @@ export class InteractiveForceEngine {
       forcesY.set(node.id, forcesY.get(node.id)! + dy * this.config.kCenter);
     });
 
-    // 5. Integration Step
+    // 6. Integration Step (All nodes participate in physics step)
     let totalEnergy = 0;
 
     nodeList.forEach((node) => {
-      if (!node.isDragging) {
-        const fx = forcesX.get(node.id) || 0;
-        const fy = forcesY.get(node.id) || 0;
+      const fx = forcesX.get(node.id) || 0;
+      const fy = forcesY.get(node.id) || 0;
 
-        node.vx = (node.vx + fx) * this.config.damping;
-        node.vy = (node.vy + fy) * this.config.damping;
+      node.vx = (node.vx + fx) * this.config.damping;
+      node.vy = (node.vy + fy) * this.config.damping;
 
-        node.x += node.vx;
-        node.y += node.vy;
+      node.x += node.vx;
+      node.y += node.vy;
 
-        totalEnergy += node.vx * node.vx + node.vy * node.vy;
-      } else {
-        node.vx = 0;
-        node.vy = 0;
-      }
+      totalEnergy += node.vx * node.vx + node.vy * node.vy;
     });
 
     return totalEnergy;
