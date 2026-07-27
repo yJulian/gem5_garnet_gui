@@ -120,3 +120,14 @@ html.light .react-flow__minimap {
 .react-flow__edge-path {
   stroke-width: 2.5;
 }
+
+/* Shake Animation for Blocked Router Deletion */
+@keyframes shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  15%, 45%, 75% { transform: translate3d(-6px, 0, 0); }
+  30%, 60%, 90% { transform: translate3d(6px, 0, 0); }
+}
+
+.animate-shake {
+  animation: shake 0.45s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}

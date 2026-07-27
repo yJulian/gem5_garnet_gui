@@ -31,11 +31,15 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
     onSelectNode?: (id: string) => void;
     isDimmed?: boolean;
     isValidTarget?: boolean;
+    isShaking?: boolean;
+    isBlocking?: boolean;
   };
   const isRouter = nodeData.type === 'router';
   const isTemplate = nodeData.type === 'template';
   const isDimmed = nodeData.isDimmed;
   const isValidTarget = nodeData.isValidTarget;
+  const isShaking = nodeData.isShaking;
+  const isBlocking = nodeData.isBlocking;
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -48,7 +52,11 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
     <div
       onClick={handleClick}
       className={`px-4 py-3 rounded-xl border transition-all duration-300 min-w-[160px] shadow-lg relative cursor-pointer select-none ${
-        isDimmed
+        isShaking
+          ? 'animate-shake ring-2 ring-rose-500 border-rose-500 dark:border-rose-500 shadow-xl shadow-rose-500/40 z-30'
+          : isBlocking
+          ? 'ring-2 ring-amber-500 dark:ring-amber-400 border-amber-500 dark:border-amber-400 shadow-xl shadow-amber-500/40 scale-105 animate-pulse z-30'
+          : isDimmed
           ? 'opacity-30 grayscale blur-[0.3px] pointer-events-none scale-95 border-slate-300 dark:border-slate-800'
           : isValidTarget
           ? 'ring-2 ring-emerald-500 dark:ring-emerald-400 border-emerald-500 dark:border-emerald-400 shadow-xl shadow-emerald-500/30 scale-105 animate-pulse'

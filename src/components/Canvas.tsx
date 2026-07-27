@@ -29,6 +29,8 @@ interface CanvasProps {
   onProjectChange: (updatedProject: NoCProject) => void;
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  shakingNodeId?: string | null;
+  blockingNodeIds?: string[];
   onSelectNode: (nodeId: string | null) => void;
   onSelectEdge: (edgeId: string | null) => void;
   onRunForceLayout: () => void;
@@ -40,6 +42,8 @@ export const Canvas: React.FC<CanvasProps> = ({
   onProjectChange,
   selectedNodeId,
   selectedEdgeId,
+  shakingNodeId,
+  blockingNodeIds,
   onSelectNode,
   onSelectEdge,
   onRunForceLayout,
@@ -100,6 +104,8 @@ export const Canvas: React.FC<CanvasProps> = ({
       const isTargetRouter = n.data.type === 'router';
       const isValidTarget = isDraggingConnection && !isSelf && (isSourceRouter || isTargetRouter);
       const isDimmed = isDraggingConnection && !isValidTarget;
+      const isShaking = n.id === shakingNodeId;
+      const isBlocking = blockingNodeIds?.includes(n.id);
 
       return {
         id: n.id,
@@ -113,11 +119,13 @@ export const Canvas: React.FC<CanvasProps> = ({
           onSelectNode,
           isDimmed,
           isValidTarget,
+          isShaking,
+          isBlocking,
         } as unknown as Record<string, unknown>,
         selected: n.id === selectedNodeId,
       };
     });
-  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId]);
+  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId, shakingNodeId, blockingNodeIds]);
 
   // Construct initial edges array using CustomEdge renderer
   const initialEdges: Edge[] = useMemo(() => {

@@ -11,6 +11,8 @@ interface SettingsPanelProps {
   onSelectNode: (id: string | null) => void;
   onSelectEdge: (id: string | null) => void;
   onAddNode: (type: 'router' | 'endpoint' | 'template') => void;
+  onDeleteNode?: (id: string) => void;
+  onDeleteEdge?: (id: string) => void;
 }
 
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -21,6 +23,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSelectNode,
   onSelectEdge,
   onAddNode,
+  onDeleteNode,
+  onDeleteEdge,
 }) => {
   const selectedNode = project.nodes.find((n) => n.id === selectedNodeId);
   const selectedEdge = project.links.find((l) => l.id === selectedEdgeId);
@@ -46,10 +50,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // Delete Node
   const handleDeleteNode = () => {
     if (!selectedNodeId) return;
-    const updatedNodes = project.nodes.filter((n) => n.id !== selectedNodeId);
-    const updatedLinks = project.links.filter((l) => l.source !== selectedNodeId && l.target !== selectedNodeId);
-    onProjectChange({ ...project, nodes: updatedNodes, links: updatedLinks });
-    onSelectNode(null);
+    if (onDeleteNode) {
+      onDeleteNode(selectedNodeId);
+    } else {
+      const updatedNodes = project.nodes.filter((n) => n.id !== selectedNodeId);
+      const updatedLinks = project.links.filter((l) => l.source !== selectedNodeId && l.target !== selectedNodeId);
+      onProjectChange({ ...project, nodes: updatedNodes, links: updatedLinks });
+      onSelectNode(null);
+    }
   };
 
   // Update selected Edge fields
@@ -67,9 +75,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // Delete Edge
   const handleDeleteEdge = () => {
     if (!selectedEdgeId) return;
-    const updatedLinks = project.links.filter((l) => l.id !== selectedEdgeId);
-    onProjectChange({ ...project, links: updatedLinks });
-    onSelectEdge(null);
+    if (onDeleteEdge) {
+      onDeleteEdge(selectedEdgeId);
+    } else {
+      const updatedLinks = project.links.filter((l) => l.id !== selectedEdgeId);
+      onProjectChange({ ...project, links: updatedLinks });
+      onSelectEdge(null);
+    }
   };
 
   // Add Global Template
