@@ -66,6 +66,31 @@ export function App() {
     }
   }, [project]);
 
+  // Handle Chrome / MS Edge PWA LaunchQueue File Handler (.gnoc file association)
+  useEffect(() => {
+    if ('launchQueue' in window && 'files' in (window as any).LaunchParams.prototype) {
+      (window as any).launchQueue.setConsumer(async (launchParams: any) => {
+        if (!launchParams.files || !launchParams.files.length) return;
+
+        for (const fileHandle of launchParams.files) {
+          try {
+            const file = await fileHandle.getFile();
+            const text = await file.text();
+            const parsed = JSON.parse(text);
+
+            if (parsed && Array.isArray(parsed.nodes) && Array.isArray(parsed.links)) {
+              setProject(parsed);
+              setSelectedNodeId(null);
+              setSelectedEdgeId(null);
+            }
+          } catch (err) {
+            console.error('Failed to open .gnoc file from launchQueue:', err);
+          }
+        }
+      });
+    }
+  }, []);
+
   // Theme State ('dark' | 'light')
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const saved = localStorage.getItem('garnet_theme');

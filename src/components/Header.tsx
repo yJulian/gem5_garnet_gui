@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NoCProject } from '../types/noc';
-import { Network, FolderOpen, Save, Download, Eye, Plus, Sparkles, Sun, Moon } from 'lucide-react';
+import { Network, FolderOpen, Save, Download, Eye, Plus, Sparkles, Sun, Moon, Smartphone } from 'lucide-react';
 import { openProjectGnoc, saveProjectGnoc, exportGem5Python } from '../utils/fileSystem';
 
 interface HeaderProps {
@@ -22,6 +22,27 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
 }) => {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
+
   const handleLoadProject = async () => {
     const loaded = await openProjectGnoc();
     if (loaded) {
@@ -55,8 +76,8 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-slate-100 focus:bg-slate-950/60 hover:border-slate-700'
               }`}
             />
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 font-mono font-semibold">
-              gem5 Garnet NoC
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20 font-mono font-bold tracking-wide">
+              GarNoC
             </span>
           </div>
         </div>
@@ -64,6 +85,17 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Center Presets & Quick Actions */}
       <div className="flex items-center gap-2">
+        {deferredPrompt && (
+          <button
+            onClick={handleInstallPWA}
+            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-indigo-500/20 transition-all animate-pulse"
+            title="Install Garnet NoC as standalone PWA with .gnoc file association"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            Install App (PWA)
+          </button>
+        )}
+
         <button
           onClick={onOpenGenerator}
           className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-blue-500/20 transition-all"
