@@ -48,6 +48,8 @@ export class InteractiveForceEngine {
     this.onTickCallback = onTick;
   }
 
+  private lastEmittedPositions: Map<string, { x: number; y: number }> = new Map();
+
   public setOnTick(callback: (positions: Map<string, { x: number; y: number }>) => void) {
     this.onTickCallback = callback;
   }
@@ -256,7 +258,7 @@ export class InteractiveForceEngine {
       forcesY.set(node.id, forcesY.get(node.id)! + dy * this.config.kCenter);
     });
 
-    // 6. Integration Step (All nodes participate in physics step)
+    // 6. Integration Step
     let totalEnergy = 0;
 
     nodeList.forEach((node) => {
@@ -275,23 +277,54 @@ export class InteractiveForceEngine {
     return totalEnergy;
   }
 
+  private settleFrames = 0;
+
   private loop = () => {
     if (!this.isRunning) return;
 
-    const energy = this.step();
+    this.step();
+
+    let maxSpeed = 0;
+    this.nodes.forEach((node) => {
+      const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+      if (speed > maxSpeed) maxSpeed = speed;
+    });
 
     if (this.onTickCallback) {
+      let hasMoved = false;
       const posMap = new Map<string, { x: number; y: number }>();
+
       this.nodes.forEach((node, id) => {
-        posMap.set(id, { x: Math.round(node.x), y: Math.round(node.y) });
+        const rx = Math.round(node.x);
+        const ry = Math.round(node.y);
+        posMap.set(id, { x: rx, y: ry });
+
+        const prev = this.lastEmittedPositions.get(id);
+        if (!prev || prev.x !== rx || prev.y !== ry) {
+          hasMoved = true;
+        }
       });
-      this.onTickCallback(posMap);
+
+      if (hasMoved) {
+        this.lastEmittedPositions = posMap;
+        this.onTickCallback(posMap);
+      }
     }
 
-    if (energy < this.config.sleepThreshold) {
-      this.isRunning = false;
-      this.animFrameId = null;
-      return;
+    if (maxSpeed < 0.15) {
+      this.settleFrames++;
+      if (this.settleFrames >= 5) {
+        this.nodes.forEach((node) => {
+          node.vx = 0;
+          node.vy = 0;
+        });
+        this.isRunning = false;
+        this.animFrameId = null;
+        this.settleFrames = 0;
+        return;
+      }
+    } else {
+      this.settleFrames = 0;
     }
 
     this.animFrameId = requestAnimationFrame(this.loop);

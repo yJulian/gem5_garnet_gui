@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { NoCProject } from '../types/noc';
 import { generateGem5PythonScript } from '../utils/pythonGenerator';
 import { saveProjectGnoc, exportGem5Python } from '../utils/fileSystem';
@@ -14,10 +14,10 @@ export const CodePreviewModal: React.FC<CodePreviewModalProps> = ({ isOpen, onCl
   const [activeTab, setActiveTab] = useState<'python' | 'json'>('python');
   const [copied, setCopied] = useState(false);
 
-  if (!isOpen) return null;
+  const pythonScript = useMemo(() => (isOpen ? generateGem5PythonScript(project) : ''), [isOpen, project]);
+  const jsonScript = useMemo(() => (isOpen ? JSON.stringify(project, null, 2) : ''), [isOpen, project]);
 
-  const pythonScript = generateGem5PythonScript(project);
-  const jsonScript = JSON.stringify(project, null, 2);
+  if (!isOpen) return null;
 
   const contentToDisplay = activeTab === 'python' ? pythonScript : jsonScript;
 

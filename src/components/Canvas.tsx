@@ -36,6 +36,7 @@ interface CanvasProps {
   onSelectEdge: (edgeId: string | null) => void;
   onRunForceLayout: () => void;
   theme?: 'dark' | 'light';
+  animateFlow?: boolean;
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
@@ -49,6 +50,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   onSelectEdge,
   onRunForceLayout,
   theme = 'dark',
+  animateFlow = false,
 }) => {
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
   const edgeTypes = useMemo(() => ({ custom: CustomEdge }), []);
@@ -68,24 +70,35 @@ export const Canvas: React.FC<CanvasProps> = ({
     setConnectingSourceNodeId(null);
   }, []);
 
-  // Calculate attached endpoints and endpoint names for each Router node
+  // Calculate attached endpoints and endpoint names for each Router node (O(N + L))
   const routerAttachmentMap = useMemo(() => {
     const map = new Map<string, { count: number; names: string[] }>();
+    const nodeMap = new Map(project.nodes.map((n) => [n.id, n]));
 
     project.nodes.forEach((n) => {
       if (n.data.type === 'router') {
-        const connectedLinks = project.links.filter((l) => l.source === n.id || l.target === n.id);
-        const endpointNames: string[] = [];
+        map.set(n.id, { count: 0, names: [] });
+      }
+    });
 
-        connectedLinks.forEach((l) => {
-          const otherId = l.source === n.id ? l.target : l.source;
-          const otherNode = project.nodes.find((other) => other.id === otherId);
-          if (otherNode && otherNode.data.type !== 'router') {
-            endpointNames.push(otherNode.data.label || otherNode.id);
-          }
-        });
+    project.links.forEach((l) => {
+      const srcNode = nodeMap.get(l.source);
+      const dstNode = nodeMap.get(l.target);
 
-        map.set(n.id, { count: endpointNames.length, names: endpointNames });
+      if (srcNode?.data.type === 'router' && dstNode && dstNode.data.type !== 'router') {
+        const entry = map.get(srcNode.id);
+        if (entry) {
+          entry.count++;
+          entry.names.push(dstNode.data.label || dstNode.id);
+        }
+      }
+
+      if (dstNode?.data.type === 'router' && srcNode && srcNode.data.type !== 'router') {
+        const entry = map.get(dstNode.id);
+        if (entry) {
+          entry.count++;
+          entry.names.push(srcNode.data.label || srcNode.id);
+        }
       }
     });
 
@@ -95,11 +108,18 @@ export const Canvas: React.FC<CanvasProps> = ({
   // Compute real-time project sanity issues
   const sanityIssues = useMemo(() => validateProjectSanity(project), [project]);
 
-  // Construct initial nodes array with dynamic connection dimming & target leuchten
+  // Track prev project.nodes reference to detect structural project reloads vs local drag state
+  const prevProjectNodesRef = useRef(project.nodes);
+  const latestNodePositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
+
+  // Construct nodes array with dynamic connection dimming & target highlights
   const initialNodes: Node[] = useMemo(() => {
     const sourceNode = project.nodes.find((pn) => pn.id === connectingSourceNodeId);
     const isDraggingConnection = !!connectingSourceNodeId;
     const isSourceRouter = sourceNode?.data.type === 'router';
+
+    const isProjectNodesChanged = prevProjectNodesRef.current !== project.nodes;
+    prevProjectNodesRef.current = project.nodes;
 
     return project.nodes.map((n) => {
       const attachment = routerAttachmentMap.get(n.id);
@@ -117,16 +137,19 @@ export const Canvas: React.FC<CanvasProps> = ({
       const hasIslandWarning = nodeIssues.some((i) => i.code === 'DISCONNECTED_ISLAND');
       const sanityIssueTooltip = nodeIssues.map((i) => `${i.type.toUpperCase()}: ${i.title} - ${i.message}`).join('\n');
 
+      // If project.nodes reference has not changed, keep current active drag position
+      const localPos = !isProjectNodesChanged ? latestNodePositionsRef.current.get(n.id) : undefined;
+      const finalPosition = localPos || n.position;
+
       return {
         id: n.id,
         type: 'custom',
-        position: n.position,
+        position: finalPosition,
         data: {
           ...n.data,
           attachedEndpointCount: attachment?.count || 0,
           attachedEndpointNames: attachment?.names || [],
           nodeId: n.id,
-          onSelectNode,
           isDimmed,
           isValidTarget,
           isShaking,
@@ -139,11 +162,10 @@ export const Canvas: React.FC<CanvasProps> = ({
         selected: n.id === selectedNodeId,
       };
     });
-  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId, shakingNodeId, blockingNodeIds, sanityIssues]);
+  }, [project.nodes, selectedNodeId, routerAttachmentMap, connectingSourceNodeId, shakingNodeId, blockingNodeIds, sanityIssues]);
 
-  // Construct initial edges array using CustomEdge renderer
+  // Construct edges array using CustomEdge renderer
   const initialEdges: Edge[] = useMemo(() => {
-    // Ensure all automatic link handles are pre-calculated to cardinal positions
     const autoSnappedLinks = recalculateAutoHandles(project.nodes, project.links);
 
     return autoSnappedLinks.map((l) => {
@@ -158,19 +180,18 @@ export const Canvas: React.FC<CanvasProps> = ({
         sourceHandle: normalizeHandleId(l.sourceHandle),
         targetHandle: normalizeHandleId(l.targetHandle),
         label: `${l.bandwidth}b/c, ${l.latency}cyc`,
-        animated: l.direction === 'bi',
+        // ONLY animate when animateFlow setting is ON
+        animated: animateFlow && l.direction === 'bi',
         selected: isSelected,
         interactionWidth: 32,
         data: {
-          onSelectEdge,
-          onSelectNode,
           theme,
           bandwidth: l.bandwidth,
           latency: l.latency,
           direction: l.direction,
         },
         style: isSelected
-          ? { stroke: '#3B82F6', strokeWidth: 5, filter: 'drop-shadow(0 0 10px rgba(59, 130, 246, 0.95))', cursor: 'pointer' }
+          ? { stroke: '#3B82F6', strokeWidth: 4.5, cursor: 'pointer' }
           : {
               stroke: isLight ? (l.direction === 'bi' ? '#2563EB' : '#64748B') : (l.direction === 'bi' ? '#3B82F6' : '#64748B'),
               strokeWidth: 2.5,
@@ -178,10 +199,30 @@ export const Canvas: React.FC<CanvasProps> = ({
             },
       };
     });
-  }, [project.nodes, project.links, selectedEdgeId, theme, onSelectEdge, onSelectNode]);
+  }, [project.nodes, project.links, selectedEdgeId, theme, animateFlow]);
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
+
+  // Keep latestNodePositionsRef in sync with nodes state
+  useEffect(() => {
+    const map = new Map<string, { x: number; y: number }>();
+    nodes.forEach((n) => map.set(n.id, n.position));
+    latestNodePositionsRef.current = map;
+  }, [nodes]);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
+
+  // Sync state when initialNodes or initialEdges change without triggering double render useEffect loops
+  const prevInitialNodesRef = useRef(initialNodes);
+  if (prevInitialNodesRef.current !== initialNodes) {
+    prevInitialNodesRef.current = initialNodes;
+    setNodes(initialNodes);
+  }
+
+  const prevInitialEdgesRef = useRef(initialEdges);
+  if (prevInitialEdgesRef.current !== initialEdges) {
+    prevInitialEdgesRef.current = initialEdges;
+    setEdges(initialEdges);
+  }
 
   const forceEngineRef = useRef<InteractiveForceEngine | null>(null);
 
@@ -189,29 +230,16 @@ export const Canvas: React.FC<CanvasProps> = ({
   useEffect(() => {
     const engine = new InteractiveForceEngine((positions) => {
       setNodes((currentNodes) => {
-        const updatedNodes = currentNodes.map((cn) => {
+        let hasChanged = false;
+        const updated = currentNodes.map((cn) => {
           const p = positions.get(cn.id);
-          return p ? { ...cn, position: p } : cn;
+          if (p && (cn.position.x !== p.x || cn.position.y !== p.y)) {
+            hasChanged = true;
+            return { ...cn, position: p };
+          }
+          return cn;
         });
-
-        const autoLinks = recalculateAutoHandles(
-          updatedNodes.map((n) => ({ id: n.id, position: n.position })),
-          project.links
-        );
-
-        setEdges((currentEdges) =>
-          currentEdges.map((e) => {
-            const matchLink = autoLinks.find((l) => l.id === e.id);
-            if (!matchLink) return e;
-            return {
-              ...e,
-              sourceHandle: normalizeHandleId(matchLink.sourceHandle),
-              targetHandle: normalizeHandleId(matchLink.targetHandle),
-            };
-          })
-        );
-
-        return updatedNodes;
+        return hasChanged ? updated : currentNodes;
       });
     });
 
@@ -220,7 +248,7 @@ export const Canvas: React.FC<CanvasProps> = ({
     return () => {
       engine.stop();
     };
-  }, [project.links]);
+  }, []);
 
   // Synchronize nodes & links with physics simulation engine
   useEffect(() => {
@@ -231,15 +259,6 @@ export const Canvas: React.FC<CanvasProps> = ({
       forceEngineRef.current.stop();
     }
   }, [project.nodes, project.links, gravityMode]);
-
-  // Sync state when project or selection changes externally
-  useEffect(() => {
-    setNodes(initialNodes);
-  }, [initialNodes]);
-
-  useEffect(() => {
-    setEdges(initialEdges);
-  }, [initialEdges]);
 
   // Handle all ReactFlow node changes
   const handleNodesChange = useCallback(
@@ -264,10 +283,6 @@ export const Canvas: React.FC<CanvasProps> = ({
     (_: unknown, draggedNode: Node) => {
       if (gravityMode && forceEngineRef.current) {
         forceEngineRef.current.updateDragPos(draggedNode.id, draggedNode.position.x, draggedNode.position.y);
-      } else {
-        setNodes((currentNodes) =>
-          currentNodes.map((cn) => (cn.id === draggedNode.id ? { ...cn, position: draggedNode.position } : cn))
-        );
       }
     },
     [gravityMode]

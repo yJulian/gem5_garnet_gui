@@ -58,8 +58,28 @@ export interface NoCNodeData {
 
   // Custom metadata
   notes?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
+
+export interface CanvasCustomNodeData extends NoCNodeData {
+  nodeId: string;
+  isDimmed?: boolean;
+  isValidTarget?: boolean;
+  isShaking?: boolean;
+  isBlocking?: boolean;
+  hasSanityError?: boolean;
+  hasSanityWarning?: boolean;
+  hasIslandWarning?: boolean;
+  sanityIssueTooltip?: string;
+}
+
+export interface CanvasCustomEdgeData {
+  bandwidth: number;
+  latency: number;
+  direction: 'bi' | 'uni';
+  theme?: 'dark' | 'light';
+}
+
 
 export interface NoCLinkData {
   id: string;
@@ -76,7 +96,7 @@ export interface NoCLinkData {
   targetHandle?: string; // ReactFlow handle ID (e.g. "top", "right", "bottom", "left")
   isManualSource?: boolean;
   isManualTarget?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface NoCProjectSettings {
