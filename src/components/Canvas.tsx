@@ -19,6 +19,7 @@ import { CustomNode } from './CustomNode';
 import { NoCProject, NoCLinkData, NoCNodeData } from '../types/noc';
 import { Zap, Magnet } from 'lucide-react';
 import { computeGentleGravityDrag } from '../utils/forceLayout';
+import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
 
 interface CanvasProps {
   project: NoCProject;
@@ -28,6 +29,7 @@ interface CanvasProps {
   onSelectNode: (nodeId: string | null) => void;
   onSelectEdge: (edgeId: string | null) => void;
   onRunForceLayout: () => void;
+  theme?: 'dark' | 'light';
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
@@ -38,6 +40,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   onSelectNode,
   onSelectEdge,
   onRunForceLayout,
+  theme = 'dark',
 }) => {
   const nodeTypes = useMemo(() => ({ custom: CustomNode }), []);
   const [gravityMode, setGravityMode] = useState<boolean>(true);
@@ -59,20 +62,46 @@ export const Canvas: React.FC<CanvasProps> = ({
 
   // Construct initial edges array from project props
   const initialEdges: Edge[] = useMemo(() => {
-    return project.links.map((l) => ({
-      id: l.id,
-      source: l.source,
-      target: l.target,
-      sourceHandle: l.sourceHandle || undefined,
-      targetHandle: l.targetHandle || undefined,
-      label: `${l.bandwidth}b/c, ${l.latency}cyc`,
-      animated: l.direction === 'bi',
-      selected: l.id === selectedEdgeId,
-      style: { stroke: l.direction === 'bi' ? '#3B82F6' : '#64748B', strokeWidth: 2.5 },
-      labelStyle: { fill: '#94A3B8', fontSize: 10, fontWeight: 600 },
-      labelBgStyle: { fill: '#0F172A', fillOpacity: 0.8, rx: 4, ry: 4 },
-    }));
-  }, [project.links, selectedEdgeId]);
+    // Ensure all automatic link handles are pre-calculated to cardinal positions
+    const autoSnappedLinks = recalculateAutoHandles(project.nodes, project.links);
+
+    return autoSnappedLinks.map((l) => {
+      const isSelected = l.id === selectedEdgeId;
+      const isLight = theme === 'light';
+
+      return {
+        id: l.id,
+        source: l.source,
+        target: l.target,
+        sourceHandle: normalizeHandleId(l.sourceHandle),
+        targetHandle: normalizeHandleId(l.targetHandle),
+        label: `${l.bandwidth}b/c, ${l.latency}cyc`,
+        animated: l.direction === 'bi',
+        selected: isSelected,
+        interactionWidth: 25,
+        style: isSelected
+          ? { stroke: '#3B82F6', strokeWidth: 4.5, filter: 'drop-shadow(0 0 8px rgba(59, 130, 246, 0.8))' }
+          : {
+              stroke: isLight ? (l.direction === 'bi' ? '#2563EB' : '#64748B') : (l.direction === 'bi' ? '#3B82F6' : '#64748B'),
+              strokeWidth: 2.5,
+            },
+        labelStyle: {
+          fill: isLight ? '#334155' : '#94A3B8',
+          fontSize: 10,
+          fontWeight: 600,
+          fontFamily: 'monospace',
+        },
+        labelBgStyle: {
+          fill: isLight ? '#FFFFFF' : '#0F172A',
+          fillOpacity: 0.95,
+          rx: 6,
+          ry: 6,
+          stroke: isSelected ? '#3B82F6' : isLight ? '#CBD5E1' : '#334155',
+          strokeWidth: isSelected ? 1.5 : 1,
+        },
+      };
+    });
+  }, [project.nodes, project.links, selectedEdgeId, theme]);
 
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
@@ -94,24 +123,54 @@ export const Canvas: React.FC<CanvasProps> = ({
     []
   );
 
-  // Handle gentle Home Assistant style spring trailing during active node drag
+  // Handle Home Assistant style spring trailing & physical collision pushing during active node drag
   const handleNodeDrag = useCallback(
-    (_: any, node: Node) => {
-      if (!gravityMode) return;
+    (_: any, draggedNode: Node) => {
+      setNodes((currentNodes) => {
+        const livePosArray = currentNodes.map((cn) => ({
+          id: cn.id,
+          position: cn.id === draggedNode.id ? draggedNode.position : cn.position,
+        }));
 
-      const updatedMap = computeGentleGravityDrag(node.id, node.position, project.nodes, project.links);
+        let updatedPositionsMap: Map<string, { x: number; y: number }>;
 
-      setNodes((currentNodes) =>
-        currentNodes.map((cn) => {
-          const newPos = updatedMap.get(cn.id);
+        if (gravityMode) {
+          updatedPositionsMap = computeGentleGravityDrag(draggedNode.id, draggedNode.position, livePosArray, project.links);
+        } else {
+          updatedPositionsMap = new Map();
+          livePosArray.forEach((n) => updatedPositionsMap.set(n.id, n.position));
+        }
+
+        const newNodesPosArray = currentNodes.map((cn) => ({
+          id: cn.id,
+          position: updatedPositionsMap.get(cn.id) || cn.position,
+        }));
+
+        // Recalculate automatic connection handles dynamically during drag
+        const autoLinks = recalculateAutoHandles(newNodesPosArray, project.links);
+
+        setEdges((currentEdges) =>
+          currentEdges.map((e) => {
+            const matchLink = autoLinks.find((l) => l.id === e.id);
+            if (!matchLink) return e;
+            return {
+              ...e,
+              sourceHandle: normalizeHandleId(matchLink.sourceHandle),
+              targetHandle: normalizeHandleId(matchLink.targetHandle),
+            };
+          })
+        );
+
+        return currentNodes.map((cn) => {
+          const newPos = updatedPositionsMap.get(cn.id);
           return newPos ? { ...cn, position: newPos } : cn;
-        })
-      );
+        });
+      });
     },
-    [gravityMode, project.nodes, project.links]
+    [gravityMode, project.links]
   );
 
-  // Commit final node positions to project state when dragging stops
+  // Commit final node positions & auto handles to project state when dragging stops
   const handleNodeDragStop = useCallback(
     (_: any, node: Node) => {
       const updatedProjectNodes = project.nodes.map((pn) => {
@@ -124,7 +183,13 @@ export const Canvas: React.FC<CanvasProps> = ({
         return pn;
       });
 
-      onProjectChange({ ...project, nodes: updatedProjectNodes });
+      const updatedProjectLinks = recalculateAutoHandles(updatedProjectNodes, project.links);
+
+      onProjectChange({
+        ...project,
+        nodes: updatedProjectNodes,
+        links: updatedProjectLinks,
+      });
     },
     [nodes, project, onProjectChange]
   );
@@ -142,12 +207,17 @@ export const Canvas: React.FC<CanvasProps> = ({
     (params: Connection) => {
       if (!params.source || !params.target) return;
 
+      const normSrc = normalizeHandleId(params.sourceHandle || undefined);
+      const normDst = normalizeHandleId(params.targetHandle || undefined);
+
       const newLink: NoCLinkData = {
         id: `link_${params.source}_${params.target}_${Date.now()}`,
         source: params.source,
         target: params.target,
-        sourceHandle: params.sourceHandle || undefined,
-        targetHandle: params.targetHandle || undefined,
+        sourceHandle: normSrc,
+        targetHandle: normDst,
+        isManualSource: !!normSrc,
+        isManualTarget: !!normDst,
         latency: 1,
         bandwidth: 128,
         weight: 1,
@@ -155,16 +225,20 @@ export const Canvas: React.FC<CanvasProps> = ({
         direction: 'bi',
       };
 
+      const updatedLinks = recalculateAutoHandles(project.nodes, [...project.links, newLink]);
+
       onProjectChange({
         ...project,
-        links: [...project.links, newLink],
+        links: updatedLinks,
       });
     },
     [project, onProjectChange]
   );
 
+  const isLight = theme === 'light';
+
   return (
-    <div className="w-full h-full relative bg-dark-950">
+    <div className={`w-full h-full relative ${isLight ? 'bg-slate-100' : 'bg-dark-950'}`}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -194,7 +268,12 @@ export const Canvas: React.FC<CanvasProps> = ({
         snapToGrid={false}
         fitView
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#1E293B" />
+        <Background
+          variant={BackgroundVariant.Dots}
+          gap={20}
+          size={1.5}
+          color={isLight ? '#CBD5E1' : '#1E293B'}
+        />
         <Controls />
         <MiniMap
           nodeColor={(node) => {
@@ -203,18 +282,22 @@ export const Canvas: React.FC<CanvasProps> = ({
             if (data.type === 'template') return '#F59E0B';
             return '#10B981';
           }}
-          maskColor="rgba(15, 23, 42, 0.7)"
+          maskColor={isLight ? 'rgba(241, 245, 249, 0.7)' : 'rgba(15, 23, 42, 0.7)'}
         />
 
         {/* Force & Gravity Control Floating Panel */}
         <Panel position="top-left" className="m-4">
-          <div className="glass-panel rounded-xl p-2.5 flex items-center gap-2 shadow-2xl border border-slate-800">
+          <div className={`rounded-xl p-2.5 flex items-center gap-2 shadow-2xl border ${
+            isLight
+              ? 'bg-white/80 backdrop-blur-md border-slate-200 text-slate-800'
+              : 'glass-panel border-slate-800 text-slate-100'
+          }`}>
             <button
               onClick={onRunForceLayout}
-              className="px-3 py-1.5 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 hover:text-white border border-blue-500/40 font-medium text-xs flex items-center gap-1.5 transition-all"
+              className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-600 dark:text-blue-300 font-medium text-xs flex items-center gap-1.5 border border-blue-500/30 transition-all"
               title="Apply D3 Force-Directed Layout algorithm to arrange graph nodes"
             >
-              <Zap className="w-3.5 h-3.5 text-blue-400 fill-blue-400/20" />
+              <Zap className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20" />
               Force Auto-Layout
             </button>
 
@@ -222,17 +305,19 @@ export const Canvas: React.FC<CanvasProps> = ({
               onClick={() => setGravityMode((prev) => !prev)}
               className={`px-3 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-all ${
                 gravityMode
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
+                  : isLight
+                  ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
                   : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
               }`}
-              title="Toggle gentle elastic Gravity trailing during node dragging"
+              title="Toggle continuous physical collision pushing during node dragging"
             >
-              <Magnet className={`w-3.5 h-3.5 ${gravityMode ? 'text-amber-400 fill-amber-400/20' : 'text-slate-400'}`} />
-              Gravity Physics: {gravityMode ? 'ON' : 'OFF'}
+              <Magnet className={`w-3.5 h-3.5 ${gravityMode ? 'text-amber-500 fill-amber-500/20' : 'text-slate-400'}`} />
+              Push Physics: {gravityMode ? 'ON' : 'OFF'}
             </button>
 
-            <div className="h-4 w-px bg-slate-800" />
-            <span className="text-[11px] text-slate-400 font-mono px-1">
+            <div className={`h-4 w-px ${isLight ? 'bg-slate-300' : 'bg-slate-800'}`} />
+            <span className={`text-[11px] font-mono px-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
               Nodes: {project.nodes.length} | Links: {project.links.length}
             </span>
           </div>

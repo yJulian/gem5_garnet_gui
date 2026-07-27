@@ -1,6 +1,7 @@
 import React from 'react';
 import { NoCProject, Gem5ComponentType, NoCNodeData, NoCLinkData, GlobalTemplateDef } from '../types/noc';
 import { Settings, Cpu, Network, Code, Trash2, Plus, ArrowLeftRight } from 'lucide-react';
+import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
 
 interface SettingsPanelProps {
   project: NoCProject;
@@ -266,62 +267,177 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           /* 2. LINK INSPECTOR */
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Link Inspector</span>
+              <span className="text-xs font-bold text-blue-500 dark:text-blue-400 uppercase tracking-wider">Link Inspector</span>
               <button
                 onClick={handleDeleteEdge}
-                className="p-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 transition-colors"
+                className="p-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 hover:text-rose-400 transition-colors"
                 title="Delete Link"
               >
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-2.5 rounded bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 flex items-center justify-between">
+            {/* Connection Endpoints Badge */}
+            <div className="p-2.5 rounded bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-800 dark:text-slate-300 flex items-center justify-between shadow-sm">
               <span>{selectedEdge.source}</span>
-              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-400" />
+              <ArrowLeftRight className="w-3.5 h-3.5 text-blue-500" />
               <span>{selectedEdge.target}</span>
             </div>
 
+            {/* Bandwidth */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block font-medium">Bandwidth (bits / cycle)</label>
+              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block font-medium">Bandwidth (bits / cycle)</label>
               <input
                 type="number"
                 value={selectedEdge.bandwidth}
-                onChange={(e) => handleUpdateEdge('bandwidth', parseInt(e.target.value, 10))}
-                className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100"
+                onChange={(e) => handleUpdateEdge('bandwidth', parseInt(e.target.value, 10) || 128)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               />
             </div>
 
+            {/* Latency */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block font-medium">Link Latency (Cycles)</label>
+              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block font-medium">Link Latency (Cycles)</label>
               <input
                 type="number"
                 value={selectedEdge.latency}
-                onChange={(e) => handleUpdateEdge('latency', parseInt(e.target.value, 10))}
-                className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100"
+                onChange={(e) => handleUpdateEdge('latency', parseInt(e.target.value, 10) || 1)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               />
             </div>
 
+            {/* Routing Weight */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block font-medium">Routing Weight</label>
+              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block font-medium">Routing Weight</label>
               <input
                 type="number"
                 value={selectedEdge.weight}
-                onChange={(e) => handleUpdateEdge('weight', parseInt(e.target.value, 10))}
-                className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100"
+                onChange={(e) => handleUpdateEdge('weight', parseInt(e.target.value, 10) || 1)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               />
             </div>
 
+            {/* Virtual Channels */}
             <div>
-              <label className="text-xs text-slate-400 mb-1 block font-medium">Link Directionality</label>
+              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block font-medium">Virtual Channels (VCs / VNet)</label>
+              <input
+                type="number"
+                value={selectedEdge.vcs || 4}
+                onChange={(e) => handleUpdateEdge('vcs', parseInt(e.target.value, 10) || 4)}
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* Link Directionality */}
+            <div>
+              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block font-medium">Link Directionality</label>
               <select
                 value={selectedEdge.direction}
                 onChange={(e) => handleUpdateEdge('direction', e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-700 rounded px-3 py-1.5 text-sm text-slate-100"
+                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
               >
                 <option value="bi">Bidirectional (Full-Duplex Dual Links)</option>
                 <option value="uni">Unidirectional (Single Direction Link)</option>
               </select>
+            </div>
+
+            {/* Handle Connection Points (Auto Snapping vs Manual) */}
+            <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="text-xs font-semibold text-blue-500 dark:text-blue-400">Connection Handles (Snapping)</div>
+
+              {/* Source Handle */}
+              <div className="p-2.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
+                  <span>Source ({selectedEdge.source})</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                    selectedEdge.isManualSource
+                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/20'
+                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-500/20'
+                  }`}>
+                    {selectedEdge.isManualSource ? 'Manual' : 'Auto'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={normalizeHandleId(selectedEdge.sourceHandle) || 'right'}
+                    onChange={(e) => {
+                      const updatedLinks = project.links.map((l) =>
+                        l.id === selectedEdgeId ? { ...l, sourceHandle: e.target.value, isManualSource: true } : l
+                      );
+                      onProjectChange({ ...project, links: updatedLinks });
+                    }}
+                    className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="top">Top Handle</option>
+                    <option value="right">Right Handle</option>
+                    <option value="bottom">Bottom Handle</option>
+                    <option value="left">Left Handle</option>
+                  </select>
+
+                  {selectedEdge.isManualSource && (
+                    <button
+                      onClick={() => {
+                        const updatedLinks = project.links.map((l) =>
+                          l.id === selectedEdgeId ? { ...l, isManualSource: false } : l
+                        );
+                        onProjectChange({ ...project, links: recalculateAutoHandles(project.nodes, updatedLinks) });
+                      }}
+                      className="px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-300 hover:bg-blue-500/20 border border-blue-500/30 text-[11px] font-medium"
+                      title="Reset Source handle to Auto-Snapping mode"
+                    >
+                      Reset Auto
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Target Handle */}
+              <div className="p-2.5 bg-slate-100 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-medium text-slate-700 dark:text-slate-300">
+                  <span>Target ({selectedEdge.target})</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                    selectedEdge.isManualTarget
+                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/20'
+                      : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-500/20'
+                  }`}>
+                    {selectedEdge.isManualTarget ? 'Manual' : 'Auto'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <select
+                    value={normalizeHandleId(selectedEdge.targetHandle) || 'left'}
+                    onChange={(e) => {
+                      const updatedLinks = project.links.map((l) =>
+                        l.id === selectedEdgeId ? { ...l, targetHandle: e.target.value, isManualTarget: true } : l
+                      );
+                      onProjectChange({ ...project, links: updatedLinks });
+                    }}
+                    className="flex-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-2 py-1 text-xs text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="top">Top Handle</option>
+                    <option value="right">Right Handle</option>
+                    <option value="bottom">Bottom Handle</option>
+                    <option value="left">Left Handle</option>
+                  </select>
+
+                  {selectedEdge.isManualTarget && (
+                    <button
+                      onClick={() => {
+                        const updatedLinks = project.links.map((l) =>
+                          l.id === selectedEdgeId ? { ...l, isManualTarget: false } : l
+                        );
+                        onProjectChange({ ...project, links: recalculateAutoHandles(project.nodes, updatedLinks) });
+                      }}
+                      className="px-2 py-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-300 hover:bg-blue-500/20 border border-blue-500/30 text-[11px] font-medium"
+                      title="Reset Target handle to Auto-Snapping mode"
+                    >
+                      Reset Auto
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         ) : (

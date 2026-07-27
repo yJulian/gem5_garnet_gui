@@ -1,4 +1,5 @@
 import { NoCProject, Gem5ComponentType, NoCLinkData } from '../types/noc';
+import { recalculateAutoHandles } from './handleUtils';
 
 export interface TopologyGeneratorOptions {
   cols?: number;
@@ -175,7 +176,7 @@ export function generateMeshTopology(options: TopologyGeneratorOptions): { nodes
     }
   }
 
-  return { nodes, links };
+  return { nodes, links: recalculateAutoHandles(nodes, links) };
 }
 
 /**
@@ -343,5 +344,5 @@ export function generateRingTopology(options: TopologyGeneratorOptions): { nodes
     });
   }
 
-  return { nodes, links };
+  return { nodes, links: recalculateAutoHandles(nodes, links) };
 }

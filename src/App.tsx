@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Header } from './components/Header';
 import { Canvas } from './components/Canvas';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -40,6 +40,31 @@ export function App() {
   const [project, setProject] = useState<NoCProject>(createInitialProject);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  // Theme State ('dark' | 'light')
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('garnet_theme');
+    return saved === 'light' ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.remove('dark');
+      root.classList.add('light');
+    }
+  }, [theme]);
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('garnet_theme', next);
+      return next;
+    });
+  };
 
   // Modals
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
@@ -162,8 +187,10 @@ export function App() {
     }
   };
 
+  const isLight = theme === 'light';
+
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-dark-950">
+    <div className={`flex flex-col h-screen w-screen overflow-hidden ${isLight ? 'bg-slate-50 text-slate-900' : 'bg-dark-950 text-slate-100'}`}>
       {/* Top Header Toolbar */}
       <Header
         project={project}
@@ -171,6 +198,8 @@ export function App() {
         onOpenGenerator={() => setIsGeneratorOpen(true)}
         onOpenCodePreview={() => setIsCodePreviewOpen(true)}
         onNewProject={handleNewProject}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Main Workspace Layout */}
@@ -191,6 +220,7 @@ export function App() {
               setSelectedNodeId(null);
             }}
             onRunForceLayout={handleRunForceLayout}
+            theme={theme}
           />
         </div>
 

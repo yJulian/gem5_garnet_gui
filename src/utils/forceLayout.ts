@@ -62,13 +62,15 @@ export function computeForceLayout(
 }
 
 /**
- * Calculates multi-level Home Assistant style gravity displacement, multi-hop trailing,
- * and permanent pushing across ALL graph depth levels (hop 1, hop 2, hop 3...).
+ * Calculates silky-smooth Home Assistant Zigbee style network spring & collision physics.
+ * Features:
+ * - Gentle, continuous spring forces along connected edges with exponential hop-decay damping.
+ * - Strict collision avoidance (minDist 180px) so node cards NEVER overlap.
  */
 export function computeGentleGravityDrag(
   draggedNodeId: string,
   draggedPos: { x: number; y: number },
-  nodes: NoCProject['nodes'],
+  nodes: Array<{ id: string; position: { x: number; y: number } }>,
   links: NoCLinkData[]
 ): Map<string, { x: number; y: number }> {
   const result = new Map<string, { x: number; y: number }>();
@@ -80,7 +82,7 @@ export function computeGentleGravityDrag(
     });
   });
 
-  // 1. Build adjacency list for multi-hop graph traversal
+  // 1. Compute hop distances from draggedNodeId using BFS
   const adjacency = new Map<string, string[]>();
   nodes.forEach((n) => adjacency.set(n.id, []));
   links.forEach((l) => {
@@ -90,58 +92,75 @@ export function computeGentleGravityDrag(
     }
   });
 
-  // 2. Multi-hop BFS Trailing Pass across ALL depth levels (Hop 1, Hop 2, Hop 3...)
-  const visited = new Set<string>([draggedNodeId]);
-  const queue: Array<{ id: string; parentId: string; hop: number }> = [];
-
-  const initialNeighbors = adjacency.get(draggedNodeId) || [];
-  initialNeighbors.forEach((nbrId) => {
-    visited.add(nbrId);
-    queue.push({ id: nbrId, parentId: draggedNodeId, hop: 1 });
-  });
-
-  const maxLinkDist = 170;
+  const hopDepth = new Map<string, number>();
+  hopDepth.set(draggedNodeId, 0);
+  const queue = [draggedNodeId];
 
   while (queue.length > 0) {
-    const { id, parentId, hop } = queue.shift()!;
-    const parentPos = result.get(parentId)!;
-    const nodePos = result.get(id)!;
+    const current = queue.shift()!;
+    const currentHop = hopDepth.get(current)!;
+    const neighbors = adjacency.get(current) || [];
 
-    const dx = nodePos.x - parentPos.x;
-    const dy = nodePos.y - parentPos.y;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-
-    // Pull factor decays gracefully with hop depth: Hop 1=0.45, Hop 2=0.30, Hop 3=0.20, Hop 4=0.13...
-    const springFactor = 0.45 * Math.pow(0.68, hop - 1);
-
-    if (dist > maxLinkDist) {
-      const targetX = parentPos.x + (dx / dist) * maxLinkDist;
-      const targetY = parentPos.y + (dy / dist) * maxLinkDist;
-
-      const newX = Math.round(nodePos.x + (targetX - nodePos.x) * springFactor);
-      const newY = Math.round(nodePos.y + (targetY - nodePos.y) * springFactor);
-
-      result.set(id, { x: newX, y: newY });
-    }
-
-    // Add unvisited neighbors to queue for multi-hop propagation across ALL levels
-    const neighbors = adjacency.get(id) || [];
-    neighbors.forEach((nbrId) => {
-      if (!visited.has(nbrId)) {
-        visited.add(nbrId);
-        queue.push({ id: nbrId, parentId: id, hop: hop + 1 });
+    neighbors.forEach((nbr) => {
+      if (!hopDepth.has(nbr)) {
+        hopDepth.set(nbr, currentHop + 1);
+        queue.push(nbr);
       }
     });
   }
 
-  // 3. Multi-level Pushing & Collision Repulsion Pass (prevents node overlap across all levels)
-  const minDistance = 165;
+  const targetRestLength = 175; // Ideal link distance
+  const minCollisionDist = 180; // Minimum clearance to prevent card overlap (card width ~160px)
   const nodeIds = Array.from(result.keys());
 
-  for (let pass = 0; pass < 3; pass++) {
+  // 2. Iterative physics relaxation loop (6 passes)
+  for (let pass = 0; pass < 6; pass++) {
+    // A. Spring forces on links with exponential hop-decay damping
+    links.forEach((l) => {
+      const depthSrc = hopDepth.get(l.source) ?? 99;
+      const depthDst = hopDepth.get(l.target) ?? 99;
+      const minDepth = Math.min(depthSrc, depthDst);
+
+      // Continuous exponential decay curve across all graph levels: f(depth) = 0.07 * (0.55^depth)
+      const springStiffness = 0.07 * Math.pow(0.55, minDepth);
+
+      const posA = result.get(l.source)!;
+      const posB = result.get(l.target)!;
+
+      const dx = posB.x - posA.x;
+      const dy = posB.y - posA.y;
+      let dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1) dist = 1;
+
+      const delta = dist - targetRestLength;
+      const forceX = (dx / dist) * delta * springStiffness;
+      const forceY = (dy / dist) * delta * springStiffness;
+
+      if (l.source === draggedNodeId) {
+        result.set(l.target, {
+          x: Math.round(posB.x - forceX),
+          y: Math.round(posB.y - forceY),
+        });
+      } else if (l.target === draggedNodeId) {
+        result.set(l.source, {
+          x: Math.round(posA.x + forceX),
+          y: Math.round(posA.y + forceY),
+        });
+      } else {
+        result.set(l.source, {
+          x: Math.round(posA.x + forceX * 0.5),
+          y: Math.round(posA.y + forceY * 0.5),
+        });
+        result.set(l.target, {
+          x: Math.round(posB.x - forceX * 0.5),
+          y: Math.round(posB.y - forceY * 0.5),
+        });
+      }
+    });
+
+    // B. Collision Repulsion (strictly prevents overlapping of ANY cards)
     for (let i = 0; i < nodeIds.length; i++) {
-      for (let j = 0; j < nodeIds.length; j++) {
-        if (i === j) continue;
+      for (let j = i + 1; j < nodeIds.length; j++) {
         const idA = nodeIds[i];
         const idB = nodeIds[j];
 
@@ -152,26 +171,38 @@ export function computeGentleGravityDrag(
         const dy = posB.y - posA.y;
         let dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < minDistance) {
+        if (dist < minCollisionDist) {
           if (dist < 1) dist = 1;
-          const overlap = minDistance - dist;
-          const ux = dx / dist;
-          const uy = dy / dist;
+          const overlap = minCollisionDist - dist;
+          const pushX = (dx / dist) * overlap * 0.40;
+          const pushY = (dy / dist) * overlap * 0.40;
 
           if (idA === draggedNodeId) {
             result.set(idB, {
-              x: Math.round(posB.x + ux * overlap),
-              y: Math.round(posB.y + uy * overlap),
+              x: Math.round(posB.x + pushX),
+              y: Math.round(posB.y + pushY),
             });
-          } else if (idB !== draggedNodeId) {
+          } else if (idB === draggedNodeId) {
+            result.set(idA, {
+              x: Math.round(posA.x - pushX),
+              y: Math.round(posA.y - pushY),
+            });
+          } else {
+            result.set(idA, {
+              x: Math.round(posA.x - pushX * 0.5),
+              y: Math.round(posA.y - pushY * 0.5),
+            });
             result.set(idB, {
-              x: Math.round(posB.x + ux * overlap * 0.5),
-              y: Math.round(posB.y + uy * overlap * 0.5),
+              x: Math.round(posB.x + pushX * 0.5),
+              y: Math.round(posB.y + pushY * 0.5),
             });
           }
         }
       }
     }
+
+    // Pin dragged node firmly to mouse cursor position
+    result.set(draggedNodeId, { x: draggedPos.x, y: draggedPos.y });
   }
 
   return result;

@@ -52,68 +52,68 @@ export const CustomNode = memo(({ id, data, selected }: NodeProps) => {
           : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-100'
       }`}
     >
-      {/* TOP HANDLES (Target left 35%, Source left 65%) */}
+      {/* TOP HANDLE (Centered) */}
       <Handle
         type="target"
         position={Position.Top}
-        id="target-top"
-        style={{ left: '35%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        id="top"
+        style={{ left: '50%' }}
+        className="!w-3 !h-3 !bg-blue-500 dark:!bg-blue-400 !border-2 !border-white dark:!border-slate-900 hover:!scale-125 transition-transform z-10"
       />
       <Handle
         type="source"
         position={Position.Top}
-        id="source-top"
-        style={{ left: '65%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        id="top"
+        style={{ left: '50%' }}
+        className="!w-3 !h-3 !bg-blue-500 dark:!bg-blue-400 !border-2 !border-white dark:!border-slate-900 hover:!scale-125 transition-transform z-10"
       />
 
-      {/* BOTTOM HANDLES (Target left 35%, Source left 65%) */}
+      {/* BOTTOM HANDLE (Centered) */}
       <Handle
         type="target"
         position={Position.Bottom}
-        id="target-bottom"
-        style={{ left: '35%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        id="bottom"
+        style={{ left: '50%' }}
+        className="!w-3 !h-3 !bg-blue-500 dark:!bg-blue-400 !border-2 !border-white dark:!border-slate-900 hover:!scale-125 transition-transform z-10"
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        id="source-bottom"
-        style={{ left: '65%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        id="bottom"
+        style={{ left: '50%' }}
+        className="!w-3 !h-3 !bg-blue-500 dark:!bg-blue-400 !border-2 !border-white dark:!border-slate-900 hover:!scale-125 transition-transform z-10"
       />
 
-      {/* LEFT HANDLES (Target top 35%, Source top 65%) */}
+      {/* LEFT HANDLE (Centered) */}
       <Handle
         type="target"
         position={Position.Left}
-        id="target-left"
-        style={{ top: '35%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        id="left"
+        style={{ top: '50%' }}
+        className="!w-3 !h-3 !bg-blue-500 dark:!bg-blue-400 !border-2 !border-white dark:!border-slate-900 hover:!scale-125 transition-transform z-10"
       />
       <Handle
         type="source"
         position={Position.Left}
-        id="source-left"
-        style={{ top: '65%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        id="left"
+        style={{ top: '50%' }}
+        className="!w-3 !h-3 !bg-blue-500 dark:!bg-blue-400 !border-2 !border-white dark:!border-slate-900 hover:!scale-125 transition-transform z-10"
       />
 
-      {/* RIGHT HANDLES (Target top 35%, Source top 65%) */}
+      {/* RIGHT HANDLE (Centered) */}
       <Handle
         type="target"
         position={Position.Right}
-        id="target-right"
-        style={{ top: '35%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-400 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        id="right"
+        style={{ top: '50%' }}
+        className="!w-3 !h-3 !bg-blue-500 dark:!bg-blue-400 !border-2 !border-white dark:!border-slate-900 hover:!scale-125 transition-transform z-10"
       />
       <Handle
         type="source"
         position={Position.Right}
-        id="source-right"
-        style={{ top: '65%' }}
-        className="!w-2.5 !h-2.5 !bg-blue-500 !border-2 !border-slate-900 hover:!scale-125 transition-transform"
+        id="right"
+        style={{ top: '50%' }}
+        className="!w-3 !h-3 !bg-blue-500 dark:!bg-blue-400 !border-2 !border-white dark:!border-slate-900 hover:!scale-125 transition-transform z-10"
       />
 
       {/* Header Badge & Title */}

@@ -41,8 +41,10 @@ export interface NoCLinkData {
   direction: 'bi' | 'uni'; // Bidirectional vs Unidirectional
   srcPort?: string;    // e.g. "East", "West", "North", "South", "In", "Out"
   dstPort?: string;
-  sourceHandle?: string; // ReactFlow handle ID (e.g. "source-top", "source-right")
-  targetHandle?: string; // ReactFlow handle ID (e.g. "target-top", "target-left")
+  sourceHandle?: string; // ReactFlow handle ID (e.g. "top", "right", "bottom", "left")
+  targetHandle?: string; // ReactFlow handle ID (e.g. "top", "right", "bottom", "left")
+  isManualSource?: boolean;
+  isManualTarget?: boolean;
   [key: string]: any;
 }
 
