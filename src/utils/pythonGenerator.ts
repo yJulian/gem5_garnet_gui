@@ -268,11 +268,20 @@ export function generateGem5PythonScript(project: NoCProject): string {
           case 'CPU_Timing': {
             const cid = cpuCounter++;
             lines.push(`    ${varName}_cpu = TimingSimpleCPU(cpu_id=${cid})`);
+            if (epNode.data.clock) {
+              lines.push(`    ${varName}_cpu.clk_domain = SrcClockDomain(clock='${epNode.data.clock}', voltage_domain=VoltageDomain())`);
+            }
             lines.push(`    ${varName}_cpu.createInterruptController()`);
-            lines.push(`    if binary_path:`);
-            lines.push(`        ${varName}_cpu.workload = Process(cmd=[binary_path])`);
-            lines.push(`        ${varName}_cpu.createThreads()`);
-            lines.push(`    ${varName}_seq = RubySequencer(version=${cid}, icache=Cache(size='32kB', assoc=2), dcache=Cache(size='64kB', assoc=4))`);
+            const epBinary = epNode.data.workloadCmd?.trim() || binaryPath;
+            if (epBinary) {
+              lines.push(`    ${varName}_cpu.workload = Process(cmd=['${epBinary}'])`);
+              lines.push(`    ${varName}_cpu.createThreads()`);
+            }
+            const iSize = epNode.data.l1iSize || '32kB';
+            const iAssoc = epNode.data.l1iAssoc || 2;
+            const dSize = epNode.data.l1dSize || '64kB';
+            const dAssoc = epNode.data.l1dAssoc || 4;
+            lines.push(`    ${varName}_seq = RubySequencer(version=${cid}, icache=Cache(size='${iSize}', assoc=${iAssoc}), dcache=Cache(size='${dSize}', assoc=${dAssoc}))`);
             lines.push(`    ${varName}_cpu.icache_port = ${varName}_seq.in_ports`);
             lines.push(`    ${varName}_cpu.dcache_port = ${varName}_seq.in_ports`);
             lines.push(`    system.${varName}_cpu = ${varName}_cpu`);
@@ -282,11 +291,20 @@ export function generateGem5PythonScript(project: NoCProject): string {
           case 'CPU_O3': {
             const cid = cpuCounter++;
             lines.push(`    ${varName}_cpu = DerivO3CPU(cpu_id=${cid})`);
+            if (epNode.data.clock) {
+              lines.push(`    ${varName}_cpu.clk_domain = SrcClockDomain(clock='${epNode.data.clock}', voltage_domain=VoltageDomain())`);
+            }
             lines.push(`    ${varName}_cpu.createInterruptController()`);
-            lines.push(`    if binary_path:`);
-            lines.push(`        ${varName}_cpu.workload = Process(cmd=[binary_path])`);
-            lines.push(`        ${varName}_cpu.createThreads()`);
-            lines.push(`    ${varName}_seq = RubySequencer(version=${cid}, icache=Cache(size='32kB', assoc=4), dcache=Cache(size='64kB', assoc=8))`);
+            const epBinary = epNode.data.workloadCmd?.trim() || binaryPath;
+            if (epBinary) {
+              lines.push(`    ${varName}_cpu.workload = Process(cmd=['${epBinary}'])`);
+              lines.push(`    ${varName}_cpu.createThreads()`);
+            }
+            const iSize = epNode.data.l1iSize || '32kB';
+            const iAssoc = epNode.data.l1iAssoc || 4;
+            const dSize = epNode.data.l1dSize || '64kB';
+            const dAssoc = epNode.data.l1dAssoc || 8;
+            lines.push(`    ${varName}_seq = RubySequencer(version=${cid}, icache=Cache(size='${iSize}', assoc=${iAssoc}), dcache=Cache(size='${dSize}', assoc=${dAssoc}))`);
             lines.push(`    ${varName}_cpu.icache_port = ${varName}_seq.in_ports`);
             lines.push(`    ${varName}_cpu.dcache_port = ${varName}_seq.in_ports`);
             lines.push(`    system.${varName}_cpu = ${varName}_cpu`);
@@ -299,32 +317,58 @@ export function generateGem5PythonScript(project: NoCProject): string {
           case 'Cache_L1D':
             lines.push(`    ${varName} = L1Cache_Controller(version=${ver}, is_dcache=True)`);
             break;
-          case 'Cache_L2':
-            lines.push(`    ${varName} = L2Cache_Controller(version=${ver}, l2_size='256kB', assoc=8)`);
+          case 'Cache_L2': {
+            const l2Size = epNode.data.cacheSize || '256kB';
+            const l2Assoc = epNode.data.cacheAssoc || 8;
+            lines.push(`    ${varName} = L2Cache_Controller(version=${ver}, l2_size='${l2Size}', assoc=${l2Assoc})`);
             break;
-          case 'Directory':
+          }
+          case 'Directory': {
             lines.push(`    ${varName} = Directory_Controller(version=${ver})`);
+            if (epNode.data.addrRangeStart && epNode.data.addrRangeSize) {
+              lines.push(`    ${varName}.addr_range = AddrRange('${epNode.data.addrRangeStart}', size='${epNode.data.addrRangeSize}')`);
+            }
             break;
-          case 'DRAM_DDR3':
+          }
+          case 'DRAM_DDR3': {
             lines.push(`    ${varName} = Directory_Controller(version=${ver})`);
+            if (epNode.data.addrRangeStart && epNode.data.addrRangeSize) {
+              lines.push(`    ${varName}.addr_range = AddrRange('${epNode.data.addrRangeStart}', size='${epNode.data.addrRangeSize}')`);
+            }
             lines.push(`    ${varName}.memBuffer = MemCtrl(dram=DDR3_1600_8x8())`);
             break;
-          case 'DRAM_DDR4':
+          }
+          case 'DRAM_DDR4': {
             lines.push(`    ${varName} = Directory_Controller(version=${ver})`);
+            if (epNode.data.addrRangeStart && epNode.data.addrRangeSize) {
+              lines.push(`    ${varName}.addr_range = AddrRange('${epNode.data.addrRangeStart}', size='${epNode.data.addrRangeSize}')`);
+            }
             lines.push(`    ${varName}.memBuffer = MemCtrl(dram=SingleChannelDDR4_2400())`);
             break;
-          case 'DRAM_HBM2':
+          }
+          case 'DRAM_HBM2': {
             lines.push(`    ${varName} = Directory_Controller(version=${ver})`);
+            if (epNode.data.addrRangeStart && epNode.data.addrRangeSize) {
+              lines.push(`    ${varName}.addr_range = AddrRange('${epNode.data.addrRangeStart}', size='${epNode.data.addrRangeSize}')`);
+            }
             lines.push(`    ${varName}.memBuffer = MemCtrl(dram=HBM2_2000_4H_1x64())`);
             break;
-          case 'DMA':
+          }
+          case 'DMA': {
             lines.push(`    ${varName}_seq = DMASequencer(version=${ver})`);
             lines.push(`    ${varName} = DMA_Controller(version=${ver}, dma_sequencer=${varName}_seq)`);
+            if (epNode.data.addrRangeStart && epNode.data.addrRangeSize) {
+              lines.push(`    ${varName}.addr_range = AddrRange('${epNode.data.addrRangeStart}', size='${epNode.data.addrRangeSize}')`);
+            }
             break;
-          case 'Synthetic_Traffic':
-            lines.push(`    ${varName}_gen = GarnetSyntheticTraffic(version=${ver}, sim_cycles=1000000, injection_rate=0.1)`);
+          }
+          case 'Synthetic_Traffic': {
+            const inj = epNode.data.injectionRate ?? 0.1;
+            const simCyc = epNode.data.simCycles ?? 1000000;
+            lines.push(`    ${varName}_gen = GarnetSyntheticTraffic(version=${ver}, sim_cycles=${simCyc}, injection_rate=${inj})`);
             lines.push(`    ${varName} = L1Cache_Controller(version=${ver}, sequencer=${varName}_gen)`);
             break;
+          }
           case 'Custom_Accelerator':
           default:
             lines.push(`    ${varName} = CustomGarnetAccelerator()`);
@@ -448,7 +492,20 @@ export function generateGem5PythonScript(project: NoCProject): string {
   lines.push(`    system = System()`);
   lines.push(`    system.clk_domain = SrcClockDomain(clock='${project.settings.clockDomain || '2GHz'}', voltage_domain=VoltageDomain())`);
   lines.push(`    system.mem_mode = 'timing'`);
-  lines.push(`    system.mem_ranges = [AddrRange('512MB')]`);
+
+  // Build system.mem_ranges dynamically from configured node memory regions
+  const configuredMemRanges: string[] = [];
+  project.nodes.forEach((n) => {
+    if (n.data.addrRangeStart && n.data.addrRangeSize) {
+      configuredMemRanges.push(`AddrRange('${n.data.addrRangeStart}', size='${n.data.addrRangeSize}')`);
+    }
+  });
+
+  if (configuredMemRanges.length > 0) {
+    lines.push(`    system.mem_ranges = [${configuredMemRanges.join(', ')}]`);
+  } else {
+    lines.push(`    system.mem_ranges = [AddrRange('512MB')]`);
+  };
   lines.push(``);
   lines.push(`    # 1. Build and attach all configured CPUs, Caches, DRAM, and Custom Endpoints`);
   lines.push(`    controllers = build_system_controllers(system, binary_path=${binaryPath ? `'${binaryPath}'` : 'None'})`);

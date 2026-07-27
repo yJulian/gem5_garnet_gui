@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { NoCProject } from '../types/noc';
-import { Network, FolderOpen, Save, Download, Eye, Plus, Sparkles, Sun, Moon, Smartphone } from 'lucide-react';
+import { Network, FolderOpen, Save, Download, Eye, Plus, Sparkles, Sun, Moon, Smartphone, AlertTriangle, CheckCircle2, ShieldAlert, Wand2 } from 'lucide-react';
 import { openProjectGnoc, saveProjectGnoc, exportGem5Python } from '../utils/fileSystem';
+import { validateProjectSanity, autoFixAllMemoryOverlaps } from '../utils/validationUtils';
 
 interface HeaderProps {
   project: NoCProject;
@@ -9,6 +10,7 @@ interface HeaderProps {
   onOpenGenerator: () => void;
   onOpenCodePreview: () => void;
   onNewProject: () => void;
+  onSelectNode?: (id: string | null) => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
 }
@@ -19,10 +21,16 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenGenerator,
   onOpenCodePreview,
   onNewProject,
+  onSelectNode,
   theme,
   onToggleTheme,
 }) => {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showSanityFlyout, setShowSanityFlyout] = useState(false);
+
+  const sanityIssues = validateProjectSanity(project);
+  const errorCount = sanityIssues.filter((i) => i.type === 'error').length;
+  const warningCount = sanityIssues.filter((i) => i.type === 'warning').length;
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -53,7 +61,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isLight = theme === 'light';
 
   return (
-    <header className={`h-14 border-b px-4 flex items-center justify-between z-20 transition-colors ${
+    <header className={`h-14 border-b px-4 flex items-center justify-between z-20 transition-colors relative ${
       isLight
         ? 'bg-white/90 border-slate-200 text-slate-800 backdrop-blur-md shadow-sm'
         : 'bg-slate-900/90 border-slate-800 text-slate-100 glass-panel'
@@ -83,8 +91,100 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Center Presets & Quick Actions */}
+      {/* Center Presets & Sanity Checker Badge */}
       <div className="flex items-center gap-2">
+        {/* Sanity Check Badge Button */}
+        <div className="relative">
+          <button
+            onClick={() => setShowSanityFlyout((prev) => !prev)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+              errorCount > 0
+                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/40 shadow-sm shadow-rose-500/20 animate-pulse'
+                : warningCount > 0
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/40'
+                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+            }`}
+            title="Click to view real-time project sanity check issues"
+          >
+            {errorCount > 0 ? (
+              <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+            ) : warningCount > 0 ? (
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+            ) : (
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+            )}
+            <span>
+              {errorCount > 0
+                ? `${errorCount} Error${errorCount > 1 ? 's' : ''}`
+                : warningCount > 0
+                ? `${warningCount} Warning${warningCount > 1 ? 's' : ''}`
+                : 'Sanity OK'}
+            </span>
+          </button>
+
+          {/* Sanity Issues Popover / Flyout */}
+          {showSanityFlyout && (
+            <div className={`absolute left-0 mt-2 w-80 rounded-xl border p-3 shadow-2xl z-50 backdrop-blur-xl ${
+              isLight ? 'bg-white/95 border-slate-200 text-slate-800' : 'bg-slate-900/95 border-slate-800 text-slate-100'
+            }`}>
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200 dark:border-slate-800">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                  Sanity Check Report ({sanityIssues.length})
+                </span>
+                <button
+                  onClick={() => setShowSanityFlyout(false)}
+                  className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {sanityIssues.length === 0 ? (
+                <div className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-2 py-2">
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>No address conflicts, router ID duplications, or topology warnings detected!</span>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {sanityIssues.some((i) => i.code === 'MEMORY_OVERLAP') && (
+                    <button
+                      onClick={() => {
+                        onProjectChange(autoFixAllMemoryOverlaps(project));
+                      }}
+                      className="w-full py-1.5 px-2.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-purple-500/20 transition-all mb-1.5"
+                    >
+                      <Wand2 className="w-3.5 h-3.5" />
+                      Auto-Fix All Memory Overlaps
+                    </button>
+                  )}
+                  {sanityIssues.map((issue) => (
+                    <div
+                      key={issue.id}
+                      onClick={() => {
+                        if (issue.nodeId && onSelectNode) {
+                          onSelectNode(issue.nodeId);
+                        }
+                        setShowSanityFlyout(false);
+                      }}
+                      className={`p-2 rounded-lg border text-xs cursor-pointer transition-all hover:scale-[1.02] ${
+                        issue.type === 'error'
+                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'
+                          : 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                      }`}
+                    >
+                      <div className="font-semibold flex items-center justify-between">
+                        <span>{issue.title}</span>
+                        {issue.nodeId && <span className="text-[10px] underline font-mono">Select Node</span>}
+                      </div>
+                      <div className="text-[11px] opacity-90 mt-0.5">{issue.message}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {deferredPrompt && (
           <button
             onClick={handleInstallPWA}

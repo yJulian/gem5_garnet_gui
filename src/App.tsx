@@ -364,6 +364,7 @@ export function App() {
         onOpenGenerator={() => setIsGeneratorOpen(true)}
         onOpenCodePreview={() => setIsCodePreviewOpen(true)}
         onNewProject={handleNewProject}
+        onSelectNode={setSelectedNodeId}
         theme={theme}
         onToggleTheme={handleToggleTheme}
       />

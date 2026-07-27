@@ -1,14 +1,14 @@
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
   Controls,
+  ControlButton,
   MiniMap,
   Node,
   Edge,
   Connection,
   BackgroundVariant,
-  Panel,
   NodeChange,
   EdgeChange,
   applyNodeChanges,
@@ -20,9 +20,10 @@ import '@xyflow/react/dist/style.css';
 import { CustomNode } from './CustomNode';
 import { CustomEdge } from './CustomEdge';
 import { NoCProject, NoCLinkData, NoCNodeData } from '../types/noc';
-import { Zap, Magnet, Eye, EyeOff } from 'lucide-react';
-import { computeGentleGravityDrag } from '../utils/forceLayout';
+import { Zap, Magnet, Eye, EyeOff, Unlock } from 'lucide-react';
 import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
+import { validateProjectSanity } from '../utils/validationUtils';
+import { InteractiveForceEngine } from '../utils/interactiveForceEngine';
 
 interface CanvasProps {
   project: NoCProject;
@@ -91,6 +92,9 @@ export const Canvas: React.FC<CanvasProps> = ({
     return map;
   }, [project.nodes, project.links]);
 
+  // Compute real-time project sanity issues
+  const sanityIssues = useMemo(() => validateProjectSanity(project), [project]);
+
   // Construct initial nodes array with dynamic connection dimming & target leuchten
   const initialNodes: Node[] = useMemo(() => {
     const sourceNode = project.nodes.find((pn) => pn.id === connectingSourceNodeId);
@@ -107,6 +111,12 @@ export const Canvas: React.FC<CanvasProps> = ({
       const isShaking = n.id === shakingNodeId;
       const isBlocking = blockingNodeIds?.includes(n.id);
 
+      const nodeIssues = sanityIssues.filter((i) => i.nodeId === n.id);
+      const hasSanityError = nodeIssues.some((i) => i.type === 'error');
+      const hasSanityWarning = nodeIssues.some((i) => i.type === 'warning');
+      const hasIslandWarning = nodeIssues.some((i) => i.code === 'DISCONNECTED_ISLAND');
+      const sanityIssueTooltip = nodeIssues.map((i) => `${i.type.toUpperCase()}: ${i.title} - ${i.message}`).join('\n');
+
       return {
         id: n.id,
         type: 'custom',
@@ -121,11 +131,15 @@ export const Canvas: React.FC<CanvasProps> = ({
           isValidTarget,
           isShaking,
           isBlocking,
+          hasSanityError,
+          hasSanityWarning,
+          hasIslandWarning,
+          sanityIssueTooltip,
         } as unknown as Record<string, unknown>,
         selected: n.id === selectedNodeId,
       };
     });
-  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId, shakingNodeId, blockingNodeIds]);
+  }, [project.nodes, selectedNodeId, onSelectNode, routerAttachmentMap, connectingSourceNodeId, shakingNodeId, blockingNodeIds, sanityIssues]);
 
   // Construct initial edges array using CustomEdge renderer
   const initialEdges: Edge[] = useMemo(() => {
@@ -169,6 +183,55 @@ export const Canvas: React.FC<CanvasProps> = ({
   const [nodes, setNodes] = useState<Node[]>(initialNodes);
   const [edges, setEdges] = useState<Edge[]>(initialEdges);
 
+  const forceEngineRef = useRef<InteractiveForceEngine | null>(null);
+
+  // Initialize Interactive Force Engine and attach physics tick callback
+  useEffect(() => {
+    const engine = new InteractiveForceEngine((positions) => {
+      setNodes((currentNodes) => {
+        const updatedNodes = currentNodes.map((cn) => {
+          const p = positions.get(cn.id);
+          return p ? { ...cn, position: p } : cn;
+        });
+
+        const autoLinks = recalculateAutoHandles(
+          updatedNodes.map((n) => ({ id: n.id, position: n.position })),
+          project.links
+        );
+
+        setEdges((currentEdges) =>
+          currentEdges.map((e) => {
+            const matchLink = autoLinks.find((l) => l.id === e.id);
+            if (!matchLink) return e;
+            return {
+              ...e,
+              sourceHandle: normalizeHandleId(matchLink.sourceHandle),
+              targetHandle: normalizeHandleId(matchLink.targetHandle),
+            };
+          })
+        );
+
+        return updatedNodes;
+      });
+    });
+
+    forceEngineRef.current = engine;
+
+    return () => {
+      engine.stop();
+    };
+  }, [project.links]);
+
+  // Synchronize nodes & links with physics simulation engine
+  useEffect(() => {
+    if (gravityMode && forceEngineRef.current) {
+      forceEngineRef.current.syncNodes(project.nodes);
+      forceEngineRef.current.setLinks(project.links);
+    } else if (!gravityMode && forceEngineRef.current) {
+      forceEngineRef.current.stop();
+    }
+  }, [project.nodes, project.links, gravityMode]);
+
   // Sync state when project or selection changes externally
   useEffect(() => {
     setNodes(initialNodes);
@@ -186,60 +249,45 @@ export const Canvas: React.FC<CanvasProps> = ({
     []
   );
 
-  // Handle Home Assistant style spring trailing & physical collision pushing during active node drag
-  const handleNodeDrag = useCallback(
-    (_: unknown, draggedNode: Node) => {
-      setNodes((currentNodes) => {
-        const livePosArray = currentNodes.map((cn) => ({
-          id: cn.id,
-          position: cn.id === draggedNode.id ? draggedNode.position : cn.position,
-        }));
-
-        let updatedPositionsMap: Map<string, { x: number; y: number }>;
-
-        if (gravityMode) {
-          updatedPositionsMap = computeGentleGravityDrag(draggedNode.id, draggedNode.position, livePosArray, project.links);
-        } else {
-          updatedPositionsMap = new Map();
-          livePosArray.forEach((n) => updatedPositionsMap.set(n.id, n.position));
-        }
-
-        const newNodesPosArray = currentNodes.map((cn) => ({
-          id: cn.id,
-          position: updatedPositionsMap.get(cn.id) || cn.position,
-        }));
-
-        // Recalculate automatic connection handles dynamically during drag
-        const autoLinks = recalculateAutoHandles(newNodesPosArray, project.links);
-
-        setEdges((currentEdges) =>
-          currentEdges.map((e) => {
-            const matchLink = autoLinks.find((l) => l.id === e.id);
-            if (!matchLink) return e;
-            return {
-              ...e,
-              sourceHandle: normalizeHandleId(matchLink.sourceHandle),
-              targetHandle: normalizeHandleId(matchLink.targetHandle),
-            };
-          })
-        );
-
-        return currentNodes.map((cn) => {
-          const newPos = updatedPositionsMap.get(cn.id);
-          return newPos ? { ...cn, position: newPos } : cn;
-        });
-      });
+  // Drag Start: Start dragging node in physics engine
+  const handleNodeDragStart = useCallback(
+    (_: unknown, node: Node) => {
+      if (gravityMode && forceEngineRef.current) {
+        forceEngineRef.current.startDrag(node.id);
+      }
     },
-    [gravityMode, project.links]
+    [gravityMode]
   );
 
-  // Commit final node positions & auto handles to project state when dragging stops
+  // Drag Move: Update active drag position in real time
+  const handleNodeDrag = useCallback(
+    (_: unknown, draggedNode: Node) => {
+      if (gravityMode && forceEngineRef.current) {
+        forceEngineRef.current.updateDragPos(draggedNode.id, draggedNode.position.x, draggedNode.position.y);
+      } else {
+        setNodes((currentNodes) =>
+          currentNodes.map((cn) => (cn.id === draggedNode.id ? { ...cn, position: draggedNode.position } : cn))
+        );
+      }
+    },
+    [gravityMode]
+  );
+
+  // Drag Stop: Store drop coordinates as Soft Target Anchor (anchorX, anchorY) and commit
   const handleNodeDragStop = useCallback(
     (_: unknown, node: Node) => {
+      if (gravityMode && forceEngineRef.current) {
+        forceEngineRef.current.endDrag(node.id);
+      }
+
       const updatedProjectNodes = project.nodes.map((pn) => {
         const currentLocalNode = nodes.find((n) => n.id === pn.id);
         if (pn.id === node.id) {
-          return { ...pn, position: node.position };
+          return {
+            ...pn,
+            position: node.position,
+            data: { ...pn.data, anchorX: node.position.x, anchorY: node.position.y },
+          };
         } else if (currentLocalNode) {
           return { ...pn, position: currentLocalNode.position };
         }
@@ -254,7 +302,7 @@ export const Canvas: React.FC<CanvasProps> = ({
         links: updatedProjectLinks,
       });
     },
-    [nodes, project, onProjectChange]
+    [gravityMode, nodes, project, onProjectChange]
   );
 
   // Handle all ReactFlow edge changes
@@ -348,8 +396,19 @@ export const Canvas: React.FC<CanvasProps> = ({
         onConnectStart={handleConnectStart}
         onConnectEnd={handleConnectEnd}
         isValidConnection={isValidConnection}
+        onNodeDragStart={handleNodeDragStart}
         onNodeDrag={handleNodeDrag}
         onNodeDragStop={handleNodeDragStop}
+        onNodeDoubleClick={(event, node) => {
+          event.stopPropagation();
+          if (forceEngineRef.current) {
+            forceEngineRef.current.clearAnchor(node.id);
+          }
+          const updatedProjectNodes = project.nodes.map((pn) =>
+            pn.id === node.id ? { ...pn, data: { ...pn.data, anchorX: undefined, anchorY: undefined } } : pn
+          );
+          onProjectChange({ ...project, nodes: updatedProjectNodes });
+        }}
         onNodeClick={(event, node) => {
           event.stopPropagation();
           onSelectNode(node.id);
@@ -387,7 +446,55 @@ export const Canvas: React.FC<CanvasProps> = ({
           size={1.5}
           color={isLight ? '#CBD5E1' : '#1E293B'}
         />
-        <Controls />
+        <Controls position="bottom-left" className="react-flow__controls-grid">
+          <ControlButton
+            onClick={onRunForceLayout}
+            title="Force Auto-Layout"
+            aria-label="Force Auto-Layout"
+          >
+            <Zap className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20" />
+          </ControlButton>
+
+          <ControlButton
+            onClick={() => setGravityMode((prev) => !prev)}
+            title={`Push Physics: ${gravityMode ? 'ON' : 'OFF'}`}
+            aria-label="Toggle Push Physics"
+            className={gravityMode ? '!bg-amber-500/20' : ''}
+          >
+            <Magnet className={`w-3.5 h-3.5 ${gravityMode ? 'text-amber-500 fill-amber-500/20' : 'text-slate-400'}`} />
+          </ControlButton>
+
+          <ControlButton
+            onClick={() => {
+              if (forceEngineRef.current) {
+                forceEngineRef.current.clearAllAnchors();
+              }
+              const updatedProjectNodes = project.nodes.map((pn) => ({
+                ...pn,
+                data: { ...pn.data, anchorX: undefined, anchorY: undefined },
+              }));
+              onProjectChange({ ...project, nodes: updatedProjectNodes });
+            }}
+            title="Release All Anchors"
+            aria-label="Release All Anchors"
+          >
+            <Unlock className="w-3.5 h-3.5 text-rose-500" />
+          </ControlButton>
+
+          <ControlButton
+            onClick={() => setHideEndpoints((prev) => !prev)}
+            title={`Router Only View: ${hideEndpoints ? 'ON' : 'OFF'}`}
+            aria-label="Toggle Router Only View"
+            className={hideEndpoints ? '!bg-purple-500/20' : ''}
+          >
+            {hideEndpoints ? (
+              <EyeOff className="w-3.5 h-3.5 text-purple-500" />
+            ) : (
+              <Eye className="w-3.5 h-3.5 text-slate-400" />
+            )}
+          </ControlButton>
+        </Controls>
+
         <MiniMap
           nodeColor={(node) => {
             const data = node.data as unknown as NoCNodeData;
@@ -397,63 +504,6 @@ export const Canvas: React.FC<CanvasProps> = ({
           }}
           maskColor={isLight ? 'rgba(241, 245, 249, 0.7)' : 'rgba(15, 23, 42, 0.7)'}
         />
-
-        {/* Force & Gravity Control Floating Panel */}
-        <Panel position="top-left" className="m-4">
-          <div className={`rounded-xl p-2.5 flex items-center gap-2 shadow-2xl border ${
-            isLight
-              ? 'bg-white/80 backdrop-blur-md border-slate-200 text-slate-800'
-              : 'glass-panel border-slate-800 text-slate-100'
-          }`}>
-            <button
-              onClick={onRunForceLayout}
-              className="px-3 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-600 dark:text-blue-300 font-medium text-xs flex items-center gap-1.5 border border-blue-500/30 transition-all"
-              title="Apply D3 Force-Directed Layout algorithm to arrange graph nodes"
-            >
-              <Zap className="w-3.5 h-3.5 text-blue-500 fill-blue-500/20" />
-              Force Auto-Layout
-            </button>
-
-            <button
-              onClick={() => setGravityMode((prev) => !prev)}
-              className={`px-3 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-all ${
-                gravityMode
-                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300 border-amber-500/40'
-                  : isLight
-                  ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
-                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
-              }`}
-              title="Toggle continuous physical collision pushing during node dragging"
-            >
-              <Magnet className={`w-3.5 h-3.5 ${gravityMode ? 'text-amber-500 fill-amber-500/20' : 'text-slate-400'}`} />
-              Push Physics: {gravityMode ? 'ON' : 'OFF'}
-            </button>
-
-            <button
-              onClick={() => setHideEndpoints((prev) => !prev)}
-              className={`px-3 py-1.5 rounded-lg border font-medium text-xs flex items-center gap-1.5 transition-all ${
-                hideEndpoints
-                  ? 'bg-purple-600/20 text-purple-600 dark:text-purple-300 border-purple-500/40 shadow-sm shadow-purple-500/20'
-                  : isLight
-                  ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
-                  : 'bg-slate-900 text-slate-400 border-slate-700 hover:text-slate-200'
-              }`}
-              title="Hide all Endpoints and Templates to inspect only the pure Router network topology layout"
-            >
-              {hideEndpoints ? (
-                <EyeOff className="w-3.5 h-3.5 text-purple-500" />
-              ) : (
-                <Eye className="w-3.5 h-3.5 text-slate-400" />
-              )}
-              Router Only: {hideEndpoints ? 'ON' : 'OFF'}
-            </button>
-
-            <div className={`h-4 w-px ${isLight ? 'bg-slate-300' : 'bg-slate-800'}`} />
-            <span className={`text-[11px] font-mono px-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-              Nodes: {project.nodes.length} | Links: {project.links.length}
-            </span>
-          </div>
-        </Panel>
       </ReactFlow>
     </div>
   );

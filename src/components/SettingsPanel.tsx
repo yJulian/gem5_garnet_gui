@@ -1,7 +1,8 @@
 import React from 'react';
 import { NoCProject, NodeType, Gem5ComponentType, NoCNodeData, NoCLinkData, GlobalTemplateDef } from '../types/noc';
-import { Settings, Cpu, Network, Code, Trash2, Plus, ArrowLeftRight } from 'lucide-react';
+import { Settings, Cpu, Network, Code, Trash2, Plus, ArrowLeftRight, AlertTriangle, Wand2 } from 'lucide-react';
 import { recalculateAutoHandles, normalizeHandleId } from '../utils/handleUtils';
+import { validateProjectSanity, findNextFreeMemoryAddress, parseSizeBytes } from '../utils/validationUtils';
 
 interface SettingsPanelProps {
   project: NoCProject;
@@ -28,6 +29,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   const selectedNode = project.nodes.find((n) => n.id === selectedNodeId);
   const selectedEdge = project.links.find((l) => l.id === selectedEdgeId);
+
+  const sanityIssues = validateProjectSanity(project);
+  const selectedNodeIssues = selectedNodeId ? sanityIssues.filter((i) => i.nodeId === selectedNodeId) : [];
 
   // Update selected Node fields
   const handleUpdateNode = (field: keyof NoCNodeData, value: any) => {
@@ -165,6 +169,28 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </button>
             </div>
 
+            {/* Active Sanity Check Warnings for this Node */}
+            {selectedNodeIssues.length > 0 && (
+              <div className="space-y-2">
+                {selectedNodeIssues.map((issue) => (
+                  <div
+                    key={issue.id}
+                    className={`p-2.5 rounded-lg border text-xs flex items-start gap-2 shadow-sm ${
+                      issue.type === 'error'
+                        ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-500/40 text-rose-800 dark:text-rose-200'
+                        : 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-200'
+                    }`}
+                  >
+                    <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${issue.type === 'error' ? 'text-rose-500' : 'text-amber-500'}`} />
+                    <div>
+                      <div className="font-semibold">{issue.title}</div>
+                      <div className="text-[11px] opacity-90 leading-tight mt-0.5">{issue.message}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Label Input */}
             <div>
               <label className="text-xs text-slate-700 dark:text-slate-400 mb-1 block font-medium">Node Label</label>
@@ -216,28 +242,200 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
             {/* Endpoint Specific Settings */}
             {selectedNode.data.type === 'endpoint' && (
-              <div className="space-y-3 p-3 bg-emerald-50/80 dark:bg-emerald-950/20 rounded-lg border border-emerald-200 dark:border-emerald-500/20">
-                <div>
-                  <label className="text-xs text-emerald-800 dark:text-emerald-300 mb-1 block font-medium">gem5 Component Type</label>
-                  <select
-                    value={selectedNode.data.gem5Component || 'CPU_Timing'}
-                    onChange={(e) => handleUpdateNode('gem5Component', e.target.value as Gem5ComponentType)}
-                    className="w-full bg-white dark:bg-slate-950 border border-emerald-300 dark:border-emerald-500/40 rounded px-2.5 py-1.5 text-sm text-emerald-900 dark:text-emerald-100 focus:outline-none"
-                  >
-                    <option value="CPU_Timing">Compute Tile (Timing CPU + L1 Cache + Sequencer)</option>
-                    <option value="CPU_O3">Compute Tile (O3 CPU + L1 Cache + Sequencer)</option>
-                    <option value="Cache_L1I">L1 Instruction Cache Tile Controller</option>
-                    <option value="Cache_L1D">L1 Data Cache Tile Controller</option>
-                    <option value="Cache_L2">Shared L2 Cache Bank Tile Controller</option>
-                    <option value="Directory">Directory Controller Tile</option>
-                    <option value="DRAM_DDR3">Directory & DRAM Tile (DDR3_1600_8x8)</option>
-                    <option value="DRAM_DDR4">Directory & DRAM Tile (SingleChannelDDR4_2400)</option>
-                    <option value="DRAM_HBM2">Directory & DRAM Tile (HBM2_2000_4H_1x64)</option>
-                    <option value="DMA">DMA Controller Tile</option>
-                    <option value="Synthetic_Traffic">Synthetic Traffic Benchmarking Generator Tile</option>
-                    <option value="Custom_Accelerator">Custom Accelerator Tile</option>
-                  </select>
+              <div className="space-y-4">
+                <div className="p-3 bg-emerald-50/80 dark:bg-emerald-950/20 rounded-lg border border-emerald-200 dark:border-emerald-500/20 space-y-3">
+                  <div>
+                    <label className="text-xs text-emerald-800 dark:text-emerald-300 mb-1 block font-medium">gem5 Component Type</label>
+                    <select
+                      value={selectedNode.data.gem5Component || 'CPU_Timing'}
+                      onChange={(e) => handleUpdateNode('gem5Component', e.target.value as Gem5ComponentType)}
+                      className="w-full bg-white dark:bg-slate-950 border border-emerald-300 dark:border-emerald-500/40 rounded px-2.5 py-1.5 text-sm text-emerald-900 dark:text-emerald-100 focus:outline-none"
+                    >
+                      <option value="CPU_Timing">Compute Tile (Timing CPU + L1 Cache + Sequencer)</option>
+                      <option value="CPU_O3">Compute Tile (O3 CPU + L1 Cache + Sequencer)</option>
+                      <option value="Cache_L1I">L1 Instruction Cache Tile Controller</option>
+                      <option value="Cache_L1D">L1 Data Cache Tile Controller</option>
+                      <option value="Cache_L2">Shared L2 Cache Bank Tile Controller</option>
+                      <option value="Directory">Directory Controller Tile</option>
+                      <option value="DRAM_DDR3">Directory & DRAM Tile (DDR3_1600_8x8)</option>
+                      <option value="DRAM_DDR4">Directory & DRAM Tile (SingleChannelDDR4_2400)</option>
+                      <option value="DRAM_HBM2">Directory & DRAM Tile (HBM2_2000_4H_1x64)</option>
+                      <option value="DMA">DMA Controller Tile</option>
+                      <option value="Synthetic_Traffic">Synthetic Traffic Benchmarking Generator Tile</option>
+                      <option value="Custom_Accelerator">Custom Accelerator Tile</option>
+                    </select>
+                  </div>
                 </div>
+
+                {/* MEMORY MAPPING REGION CONTROLS (DRAM, Directory, Cache, DMA) */}
+                {['DRAM_DDR3', 'DRAM_DDR4', 'DRAM_HBM2', 'Directory', 'DMA', 'Cache_L2'].includes(selectedNode.data.gem5Component || '') && (
+                  <div className="p-3 bg-purple-50/80 dark:bg-purple-950/20 rounded-lg border border-purple-200 dark:border-purple-500/30 space-y-3">
+                    <div className="flex items-center justify-between text-xs font-semibold text-purple-900 dark:text-purple-300">
+                      <span>Memory Region Mapping</span>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-300 border border-purple-500/20">
+                        AddrRange
+                      </span>
+                    </div>
+
+                    {/* Start Address */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-purple-950 dark:text-purple-200 font-medium">Start Base Address (Hex / Dec)</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const sizeBytes = parseSizeBytes(selectedNode.data.addrRangeSize || '512MB') || 536870912n;
+                            const freeAddr = findNextFreeMemoryAddress(project, selectedNode.id, sizeBytes);
+                            handleUpdateNode('addrRangeStart', freeAddr);
+                            if (!selectedNode.data.addrRangeSize) {
+                              handleUpdateNode('addrRangeSize', '512MB');
+                            }
+                          }}
+                          className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/30 hover:bg-purple-500/20 text-[10px] font-mono font-medium flex items-center gap-1 transition-all shadow-xs"
+                          title="Automatically find and assign next free non-overlapping memory base address"
+                        >
+                          <Wand2 className="w-3 h-3 text-purple-500" />
+                          Assign
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="e.g. 0x80000000"
+                        value={selectedNode.data.addrRangeStart || ''}
+                        onChange={(e) => handleUpdateNode('addrRangeStart', e.target.value)}
+                        className="w-full bg-white dark:bg-slate-950 border border-purple-300 dark:border-purple-500/40 rounded px-2.5 py-1 text-xs font-mono text-slate-900 dark:text-purple-100 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    {/* Size */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-purple-950 dark:text-purple-200 font-medium">Memory Region Size</label>
+                        {selectedNode.data.addrRangeStart && selectedNode.data.addrRangeSize && (
+                          <span className="text-[10px] font-mono text-purple-600 dark:text-purple-300">
+                            {selectedNode.data.addrRangeSize}
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="e.g. 512MB, 1GB, 2GB"
+                        value={selectedNode.data.addrRangeSize || ''}
+                        onChange={(e) => handleUpdateNode('addrRangeSize', e.target.value)}
+                        className="w-full bg-white dark:bg-slate-950 border border-purple-300 dark:border-purple-500/40 rounded px-2.5 py-1 text-xs font-mono text-slate-900 dark:text-purple-100 focus:outline-none focus:border-purple-500 mb-1.5"
+                      />
+
+                      {/* Presets */}
+                      <div className="grid grid-cols-5 gap-1">
+                        {['256MB', '512MB', '1GB', '2GB', '4GB'].map((preset) => (
+                          <button
+                            key={preset}
+                            onClick={() => {
+                              handleUpdateNode('addrRangeSize', preset);
+                              if (!selectedNode.data.addrRangeStart) {
+                                handleUpdateNode('addrRangeStart', '0x80000000');
+                              }
+                            }}
+                            className={`py-0.5 rounded text-[10px] font-mono font-semibold border transition-all ${
+                              selectedNode.data.addrRangeSize === preset
+                                ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                                : 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-900 hover:border-purple-400'
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* CPU SPECIFIC CONTROLS */}
+                {['CPU_Timing', 'CPU_O3'].includes(selectedNode.data.gem5Component || '') && (
+                  <div className="p-3 bg-blue-50/80 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-500/30 space-y-3">
+                    <div className="text-xs font-semibold text-blue-900 dark:text-blue-300">CPU & Cache Configurations</div>
+
+                    <div>
+                      <label className="text-xs text-blue-950 dark:text-blue-200 mb-1 block font-medium">Clock Domain Override</label>
+                      <input
+                        type="text"
+                        placeholder="Inherit global (e.g. 2.5GHz)"
+                        value={selectedNode.data.clock || ''}
+                        onChange={(e) => handleUpdateNode('clock', e.target.value)}
+                        className="w-full bg-white dark:bg-slate-950 border border-blue-300 dark:border-blue-500/40 rounded px-2.5 py-1 text-xs font-mono text-slate-900 dark:text-blue-100"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] text-blue-900 dark:text-blue-300 mb-0.5 block font-medium">L1-I Cache</label>
+                        <input
+                          type="text"
+                          placeholder="32kB"
+                          value={selectedNode.data.l1iSize || ''}
+                          onChange={(e) => handleUpdateNode('l1iSize', e.target.value)}
+                          className="w-full bg-white dark:bg-slate-950 border border-blue-300 dark:border-blue-500/40 rounded px-2 py-1 text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-blue-900 dark:text-blue-300 mb-0.5 block font-medium">L1-D Cache</label>
+                        <input
+                          type="text"
+                          placeholder="64kB"
+                          value={selectedNode.data.l1dSize || ''}
+                          onChange={(e) => handleUpdateNode('l1dSize', e.target.value)}
+                          className="w-full bg-white dark:bg-slate-950 border border-blue-300 dark:border-blue-500/40 rounded px-2 py-1 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-blue-950 dark:text-blue-200 mb-1 block font-medium">Custom Workload Executable Path</label>
+                      <input
+                        type="text"
+                        placeholder="Overriding binary path..."
+                        value={selectedNode.data.workloadCmd || ''}
+                        onChange={(e) => handleUpdateNode('workloadCmd', e.target.value)}
+                        className="w-full bg-white dark:bg-slate-950 border border-blue-300 dark:border-blue-500/40 rounded px-2.5 py-1 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* SYNTHETIC TRAFFIC GENERATOR CONTROLS */}
+                {selectedNode.data.gem5Component === 'Synthetic_Traffic' && (
+                  <div className="p-3 bg-indigo-50/80 dark:bg-indigo-950/20 rounded-lg border border-indigo-200 dark:border-indigo-500/30 space-y-3">
+                    <div className="text-xs font-semibold text-indigo-900 dark:text-indigo-300">Synthetic Benchmarking Params</div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs text-indigo-950 dark:text-indigo-200 font-medium">Injection Rate (pkts / cycle)</label>
+                        <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-300">
+                          {selectedNode.data.injectionRate ?? 0.1}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.01"
+                        max="1.0"
+                        step="0.01"
+                        value={selectedNode.data.injectionRate ?? 0.1}
+                        onChange={(e) => handleUpdateNode('injectionRate', parseFloat(e.target.value))}
+                        className="w-full h-1.5 bg-indigo-200 dark:bg-indigo-900 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-indigo-950 dark:text-indigo-200 mb-1 block font-medium">Simulation Cycles</label>
+                      <input
+                        type="number"
+                        value={selectedNode.data.simCycles ?? 1000000}
+                        onChange={(e) => handleUpdateNode('simCycles', parseInt(e.target.value, 10))}
+                        className="w-full bg-white dark:bg-slate-950 border border-indigo-300 dark:border-indigo-500/40 rounded px-2.5 py-1 text-xs font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
