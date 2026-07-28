@@ -28,11 +28,6 @@ const CustomEdgeComponent: React.FC<EdgeProps> = ({
   const edgeData = data as unknown as CanvasCustomEdgeData | undefined;
   const isLight = edgeData?.theme === 'light';
 
-  const handleEdgeClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
   return (
     <>
       {/* Invisible wider hit area (32px stroke) for easy clicking */}
@@ -42,7 +37,6 @@ const CustomEdgeComponent: React.FC<EdgeProps> = ({
         stroke="transparent"
         strokeWidth={32}
         className="cursor-pointer react-flow__edge-interaction"
-        onClick={handleEdgeClick}
       />
 
       {/* Visible Edge Line */}
@@ -71,7 +65,6 @@ const CustomEdgeComponent: React.FC<EdgeProps> = ({
           >
             <button
               type="button"
-              onClick={handleEdgeClick}
               className={`px-2.5 py-1 rounded-md text-[10px] font-mono font-bold shadow-lg transition-all border select-none cursor-pointer flex items-center gap-1.5 ${
                 selected
                   ? 'bg-blue-600 text-white border-blue-400 ring-2 ring-blue-500/60 shadow-blue-500/40 scale-105'
