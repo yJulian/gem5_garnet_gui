@@ -69,6 +69,19 @@ export function App() {
     }
   }, [project]);
 
+  // Console logging & devtools window variables for selection debugging
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__garnet_selectedNodeId = selectedNodeId;
+    (window as unknown as Record<string, unknown>).__garnet_selectedEdgeId = selectedEdgeId;
+    if (selectedNodeId) {
+      console.log(`[Garnet NoC] Selected Node: "${selectedNodeId}"`);
+    } else if (selectedEdgeId) {
+      console.log(`[Garnet NoC] Selected Link: "${selectedEdgeId}"`);
+    } else {
+      console.log('[Garnet NoC] No element selected (Global Config)');
+    }
+  }, [selectedNodeId, selectedEdgeId]);
+
   // Handle Chrome / MS Edge PWA LaunchQueue File Handler (.gnoc file association)
   useEffect(() => {
     const win = window as unknown as { launchQueue?: { setConsumer: (cb: (params: { files?: FileSystemFileHandle[] }) => void) => void }; LaunchParams?: { prototype: { files?: unknown } } };
@@ -367,6 +380,17 @@ export function App() {
     });
   };
 
+  // Stable selection callbacks
+  const handleSelectNode = useCallback((id: string | null) => {
+    setSelectedNodeId(id);
+    setSelectedEdgeId(null);
+  }, []);
+
+  const handleSelectEdge = useCallback((id: string | null) => {
+    setSelectedEdgeId(id);
+    setSelectedNodeId(null);
+  }, []);
+
   const isLight = theme === 'light';
 
   return (
@@ -378,7 +402,7 @@ export function App() {
         onOpenGenerator={() => setIsGeneratorOpen(true)}
         onOpenCodePreview={() => setIsCodePreviewOpen(true)}
         onNewProject={handleNewProject}
-        onSelectNode={setSelectedNodeId}
+        onSelectNode={handleSelectNode}
         theme={theme}
         onToggleTheme={handleToggleTheme}
         animateFlow={animateFlow}
@@ -396,14 +420,8 @@ export function App() {
             selectedEdgeId={selectedEdgeId}
             shakingNodeId={shakingNodeId}
             blockingNodeIds={blockingNodeIds}
-            onSelectNode={(id) => {
-              setSelectedNodeId(id);
-              setSelectedEdgeId(null);
-            }}
-            onSelectEdge={(id) => {
-              setSelectedEdgeId(id);
-              setSelectedNodeId(null);
-            }}
+            onSelectNode={handleSelectNode}
+            onSelectEdge={handleSelectEdge}
             onRunForceLayout={handleRunForceLayout}
             theme={theme}
             animateFlow={animateFlow}
@@ -416,8 +434,8 @@ export function App() {
           onProjectChange={setProject}
           selectedNodeId={selectedNodeId}
           selectedEdgeId={selectedEdgeId}
-          onSelectNode={setSelectedNodeId}
-          onSelectEdge={setSelectedEdgeId}
+          onSelectNode={handleSelectNode}
+          onSelectEdge={handleSelectEdge}
           onAddNode={handleAddNode}
           onDeleteNode={handleDeleteNode}
           onDeleteEdge={handleDeleteEdge}

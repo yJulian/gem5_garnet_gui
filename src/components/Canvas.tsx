@@ -268,14 +268,15 @@ export const Canvas: React.FC<CanvasProps> = ({
     []
   );
 
-  // Drag Start: Start dragging node in physics engine
+  // Drag Start: Select node immediately & start dragging in physics engine
   const handleNodeDragStart = useCallback(
     (_: unknown, node: Node) => {
+      onSelectNode(node.id);
       if (gravityMode && forceEngineRef.current) {
         forceEngineRef.current.startDrag(node.id);
       }
     },
-    [gravityMode]
+    [gravityMode, onSelectNode]
   );
 
   // Drag Move: Update active drag position in real time
@@ -424,13 +425,10 @@ export const Canvas: React.FC<CanvasProps> = ({
           );
           onProjectChange({ ...project, nodes: updatedProjectNodes });
         }}
-        onNodeClick={(event, node) => {
-          event.stopPropagation();
+        onNodeClick={(_event, node) => {
           onSelectNode(node.id);
-          onSelectEdge(null);
         }}
-        onEdgeClick={(event, edge) => {
-          event.stopPropagation();
+        onEdgeClick={(_event, edge) => {
           onSelectEdge(edge.id);
         }}
         onPaneClick={(event) => {
@@ -445,7 +443,6 @@ export const Canvas: React.FC<CanvasProps> = ({
             return;
           }
           onSelectNode(null);
-          onSelectEdge(null);
         }}
         elementsSelectable={true}
         nodesConnectable={true}

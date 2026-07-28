@@ -38,10 +38,9 @@ const CustomNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const hasSanityError = nodeData.hasSanityError;
   const hasSanityWarning = nodeData.hasSanityWarning;
   const hasIslandWarning = nodeData.hasIslandWarning;
-
   return (
     <div
-      className={`px-4 py-3 rounded-xl border transition-colors transition-shadow duration-150 min-w-[160px] shadow-lg relative cursor-pointer select-none will-change-transform ${
+      className={`nopan px-4 py-3 rounded-xl border transition-colors transition-shadow duration-150 min-w-[160px] shadow-lg relative cursor-pointer select-none will-change-transform ${
         isShaking
           ? 'animate-shake ring-4 ring-rose-500 border-rose-500 shadow-2xl shadow-rose-500/60 z-30'
           : isBlocking
